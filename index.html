@@ -1,0 +1,424 @@
+<html>
+<canvas id="canvas" touch-action="none"></canvas>
+<style>
+    body{overflow:hidden; margin:0;}
+</style>
+<script>
+    const canvas = document.getElementById("canvas");
+    const wid = window.innerWidth;
+    const hei = window.innerHeight;
+    canvas.width = wid;
+    canvas.height = hei;
+    const ctx = canvas.getContext("2d");
+    
+    //handle mouse input
+    let mousex = 0;
+    let mousey = 0;
+    document.addEventListener('mousemove', function(event) {
+        mousex = event.clientX;
+        mousey = event.clientY;
+    });
+
+    //handle touch screen input
+    document.addEventListener("touchmove", handletouch);
+    document.addEventListener("touchstart", handletouch);
+    
+    function handletouch(event) {
+        event.preventDefault();
+        mousex = event.touches[0].clientX;
+        mousey = event.touches[0].clientY;
+    }
+    
+    let score = 0;
+    const cullDistance = Math.sqrt(Math.pow(wid/2, 2) + Math.pow(hei/2, 2));
+    function updateScore(newScore)
+    {
+        let scoreDifference = newScore - score;
+        if(scoreDifference == 0)
+            return;
+
+        let p = new scoreUpdate(10, 80, scoreDifference);
+        gameObjects.unshift(p);
+        score = newScore;
+    }
+
+    class gameObject
+    {
+        x = 0.0;
+        y = 0.0;
+        angle = 0;
+        alpha = 1;
+        constructor(x, y)
+        {
+            this.x = x;
+            this.y = y;
+        }
+        tick(dt){}
+        render()
+        {
+            this.beginRender();
+            this.endRender();
+        }
+        beginRender()
+        {
+            ctx.save();
+            ctx.globalAlpha = this.alpha;
+            ctx.translate(this.x, this.y);
+            if(this.angle != 0)
+                ctx.rotate(this.angle);
+        }
+        endRender() { ctx.restore(); }
+    }
+
+    class particle extends gameObject
+    {
+        lifetime = 3;
+        startTime = -1;
+        color = "red";
+        size = 20;
+        effectiveSize = this.size;
+        speed = 30;
+        initx = null;
+        inity = null;
+        constructor(x, y)
+        {
+            super(x, y);
+            this.startTime = Date.now();
+        }
+        velxCurve(t) { return 0; };
+        velyCurve(t) { return -t; };
+        setLinearVelocity(angle, speed = null)
+        {
+            if(speed != null)
+                this.speed = speed;
+            this.velxCurve = function(t) { return Math.cos(angle) * t };
+            this.velyCurve = function(t) { return Math.sin(angle) * t };
+        }
+        fadeCurve(t) { return 1.0 - t; }
+        sizeCurve(t) { return 1.0 - t; }
+        tick(dt)
+        {
+            let t = Math.min(1, (Date.now() - this.startTime) / 1000 / this.lifetime);
+            
+            if(this.initx == null || this.inity == null)
+            {
+                this.initx = this.x;
+                this.inity = this.y;
+            }
+
+            this.x = this.initx + this.velxCurve(t) * this.speed * this.lifetime;
+            this.y = this.inity + this.velyCurve(t) * this.speed * this.lifetime;
+            this.effectiveSize = this.size * this.sizeCurve(t);
+            this.alpha = this.fadeCurve(t);
+            
+            if(t >= 1)
+                gameObjects.splice(gameObjects.indexOf(this), 1);
+        }
+        render()
+        {
+            ctx.fillStyle = this.color;
+            this.beginRender();
+            ctx.beginPath();
+	        ctx.arc(0, 0, this.effectiveSize, 0, Math.PI * 2);
+	        ctx.fill();
+            this.endRender();
+        }
+    }
+
+    class scoreUpdate extends particle
+    {
+        lifetime = 2;
+        scoreDifference = 0;
+        font = "34px monospace";
+        speed = -100;
+        constructor(x, y, scoreDifference)
+        {
+            super(x, y);
+            this.scoreDifference = scoreDifference;
+        }
+        sizeCurve(t) { return 1; }
+        fadeCurve(t) { return 1.0 - (t * t); }
+        render()
+        {
+            ctx.fillStyle = this.scoreDifference > 0 ? "green" : "red";
+            this.beginRender();
+            ctx.font = this.font;
+            ctx.fillText((this.scoreDifference > 0 ? "+" : "") + this.scoreDifference, this.x, this.y);
+            this.endRender();
+        }
+    }
+    
+    class paddleClass extends gameObject
+    {
+        wid = 20;
+        hei = 80;
+        r = 100;
+        tick(dt)
+        {
+            let mouseAngle = Math.atan2(mousey - hei / 2, mousex - wid / 2);
+            this.x = (wid / 2) + (this.r * Math.cos(mouseAngle));
+            this.y = (hei / 2) + (this.r * Math.sin(mouseAngle));
+            this.angle = mouseAngle;
+        }
+        render()
+        {
+	        ctx.fillStyle = "black";
+            this.beginRender();
+            ctx.fillRect(-this.wid/2, -this.hei/2, this.wid, this.hei);
+            this.endRender();
+	        ctx.beginPath();
+	        ctx.arc(wid/2, hei/2, 5, 0, Math.PI * 2);
+	        ctx.fill();
+        }
+    }
+    
+    class ball extends gameObject
+    {
+        prevx = 0;
+        prevy = 0;
+        r = 20;
+        speed = 100;
+        color = "purple";
+        damage = 1;
+        deflected = false;
+        touchedCenter = false;
+        constructor(r = null)
+        {
+            super();
+            if(r != null)
+                this.r = r;
+
+            //calculate random spawn coordinates on edge of screen
+            const slope = Math.tan(Math.random() * Math.PI * 2);
+            this.x = wid/2 + Math.max(-wid/2 - this.r, Math.min(wid/2 + this.r, (hei/2 + this.r) / slope));
+            this.y = hei/2 + Math.max(-hei/2 - this.r, Math.min(hei/2 + this.r, (wid/2 + this.r) * slope));
+        }
+        tick(dt)
+        {
+            const centDiffx = wid/2 - this.x;
+            const centDiffy = hei/2 - this.y;
+            const centerDist = Math.sqrt( Math.pow(centDiffy, 2) + Math.pow(centDiffx, 2) );
+            
+            //see if touched center
+            if(!this.touchedCenter && centerDist < this.speed * dt + this.r)
+            {
+                this.touchedCenter = true;
+                updateScore(Math.max(score - this.damage, 0));
+            }
+
+            //behavior when shrinking out of existence after touching the center
+            if(this.touchedCenter)
+            {
+                this.r -= 1;
+                let angle = Math.atan2(centDiffy, centDiffx);
+                this.x += Math.cos(angle);
+                this.y += Math.sin(angle);
+                if(this.r <= 1)
+                    gameObjects.splice(gameObjects.indexOf(this), 1);
+                return;
+            }
+            
+            //cull ball if deflected and moved out of cull distance
+            if(centerDist > cullDistance + this.r && this.deflected)
+            {
+                gameObjects.splice(gameObjects.indexOf(this), 1);
+                return;
+            }
+
+            //detect collision with paddle
+            //see if ball is within range of paddle, but only if currently going towards the center
+            if(!this.deflected && centerDist <= paddle.r + paddle.wid / 2 + this.r && centerDist > paddle.r + paddle.wid / 2 - this.r)
+            {
+                //dot product of normalized vectors from center
+                const v1mag = Math.sqrt(centDiffx * centDiffx + centDiffy * centDiffy);
+                const v2mag = Math.sqrt(Math.pow(wid/2 - paddle.x, 2) + Math.pow(hei/2 - paddle.y, 2));
+
+                //see if angle of paddle is close enough towards ball
+                if( (centDiffx / v1mag * (wid/2 - paddle.x) / v2mag + centDiffy / v1mag * (hei/2 - paddle.y) / v2mag) >= 0.85 )
+                {
+                    this.deflected = true;
+                    updateScore(score + 1);
+
+                    let ang = Math.atan2(centDiffy, centDiffx);
+                    let spawnx = Math.cos(ang) * this.r + this.x;
+                    let spawny = Math.sin(ang) * this.r + this.y;
+
+                    //spawn particles
+                    for(var i = 0; i < 5; i++)
+                    {
+                        var p = new particle(spawnx, spawny);
+                        var rn = Math.random();
+                        p.setLinearVelocity(Math.random() * Math.PI + ang + Math.PI / 2, rn * 150 + 60);
+                        p.color = "yellow";
+                        p.size = (1.0 - rn) * 5 + 3;
+                        p.lifetime = 1;
+                        gameObjects.unshift(p);
+                    }
+                }
+            }
+
+            //deflected movement
+            if(this.deflected)
+            {
+                let ang = Math.atan2(centDiffy, centDiffx);
+                this.x -= 100 * dt * Math.cos(ang);
+                this.y -= 100 * dt * Math.sin(ang);
+                return;
+            }
+
+            //calculate velocity based on previous x and y
+            const velx = this.x - this.prevx;
+            const vely = this.y - this.prevy;
+            this.prevx = this.x;
+            this.prevy = this.y;
+
+            //normal movement
+            if(centerDist > paddle.r - paddle.wid / 2 + this.r)
+                this.move(dt, centDiffx, centDiffy);
+            else //movement when close to center
+            {
+                let ang = Math.atan2(centDiffy, centDiffx);
+                this.x += (100 * dt * Math.cos(ang)) * 0.2 + velx * 0.8;
+                this.y += (100 * dt * Math.sin(ang)) * 0.2 + vely * 0.8;
+            }
+        }
+        move(dt, centDiffx, centDiffy)
+        {
+            let ang = Math.atan2(centDiffy, centDiffx);
+            this.x += this.speed * dt * Math.cos(ang);
+            this.y += this.speed * dt * Math.sin(ang);
+        }
+        render()
+        {
+	        this.beginRender();
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(0, 0, this.r, 0, Math.PI * 2);
+            ctx.fill();
+	        this.endRender();
+        }
+    }
+    
+    class bob extends ball
+    {
+        color = "green";
+        bobX = 0;
+        bobY = 0;
+        bobTime = 0;
+        bobSpeed = 0.1;
+        bobStrength = 70;
+        move(dt, centDiffx, centDiffy)
+        {
+            this.x -= this.bobX;
+            this.y -= this.bobY;
+            let ang = Math.atan2(centDiffy, centDiffx);
+            this.x += this.speed * dt * Math.cos(ang);
+            this.y += this.speed * dt * Math.sin(ang);
+            
+            this.bobTime++;
+            this.bobX = Math.sin(this.bobTime * this.bobSpeed) * this.bobStrength * Math.cos(ang + Math.PI / 2);
+            this.bobY = Math.sin(this.bobTime * this.bobSpeed) * this.bobStrength * Math.sin(ang + Math.PI / 2);
+            this.x += this.bobX;
+            this.y += this.bobY;
+        }
+    }
+
+    class orbiter extends ball
+    {
+        color = "blue";
+        orbitDist = -1;
+        orbitAngle = -1;
+        orbitSpeed = 750;
+        constructor(x, y)
+        {
+            super(x, y);
+            const centDiffx = wid/2 - this.x;
+            const centDiffy = hei/2 - this.y;
+            this.orbitDist = Math.sqrt(Math.pow(centDiffx, 2) + Math.pow(centDiffy, 2));
+            this.orbitAngle = Math.atan2(centDiffy, centDiffx);
+
+        }
+        move(dt, centDiffx, centDiffy)
+        {
+            this.orbitDist -= this.speed * dt;
+
+            this.orbitAngle += this.orbitSpeed * dt / this.orbitDist;
+            
+            this.x = Math.cos(this.orbitAngle) * this.orbitDist + wid/2;
+            this.y = Math.sin(this.orbitAngle) * this.orbitDist + hei/2;
+        }
+    }
+
+    class bertha extends ball
+    {
+        color = "red";
+        initSpeed = 30;
+        damage = 5;
+        constructor() { super(60); }
+        tick(dt)
+        {
+            this.speed = this.initSpeed * ( ( (Math.max(1, score / 150)) - 1) * 3 + 1 );
+            super.tick(dt);
+        }
+    }
+
+    let paddle = new paddleClass();
+    let gameObjects = [paddle];
+
+    //global render function
+    function render()
+    {
+        ctx.clearRect(0, 0, wid, hei);
+        
+        let newTime = Date.now();
+        let dt = (newTime - time) / 1000;
+        time = newTime;
+        tick(dt);
+
+        gameObjects.forEach((e) => e.render());
+        
+        ctx.fillStyle = "black";
+        ctx.font = "48px serif";
+        ctx.fillText(score, 10, 50);
+        
+        window.requestAnimationFrame(render);
+    }
+    
+    //global tick function
+    let time = Date.now();
+    let ballSpawnTime = 1;
+    let ballSpawnTimer = 0;
+    function tick(dt)
+    {
+        ballSpawnTimer += dt;
+        if(ballSpawnTimer >= ballSpawnTime)
+        {
+            //determine type of new ball
+            let type = ball;
+            var rn = Math.random();
+            if(rn <= 0.25 * Math.min(1, score / 50))
+                type = bob;
+            else if(rn <= 0.50 * Math.min(1, score / 100))
+                type = orbiter;
+            else if(rn <= 0.75 * Math.min(1, score / 150))
+                type = bertha;
+        
+            //reset spawn timer
+            ballSpawnTimer = 0;
+
+            //spawn new ball
+            let newBall = new type();
+            gameObjects.unshift(newBall);
+
+            //set type specific properties based on game conditions
+            if(type == bob)
+                newBall.bobStrength *= Math.max( 1, Math.min(3, score / 100) );
+            else if(type == orbiter)
+                newBall.orbitSpeed *= Math.max( 1, Math.min(2, score / 150) );
+        }
+        gameObjects.forEach((e) => e.tick(dt));
+    }
+    
+    window.requestAnimationFrame(render);
+</script>
+</html>
