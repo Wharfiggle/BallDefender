@@ -20,13 +20,14 @@
     });
 
     //handle touch screen input
-    document.addEventListener("touchmove", handletouch);
-    document.addEventListener("touchstart", handletouch);
-    
-    function handletouch(event) {
+    document.addEventListener("touchmove", handleTouch);
+    document.addEventListener("touchstart", handleTouch);
+    function handleTouch(event)
+    {
         event.preventDefault();
-        mousex = event.touches[0].clientX;
-        mousey = event.touches[0].clientY;
+        const touch = event.touches[0];
+        mousex = touch.clientX;
+        mousey = touch.clientY;
     }
     
     let score = 0;
