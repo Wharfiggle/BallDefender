@@ -305,7 +305,7 @@
         bobX = 0;
         bobY = 0;
         bobTime = 0;
-        bobSpeed = 0.1;
+        bobSpeed = 6;
         bobStrength = 70;
         move(dt, centDiffx, centDiffy)
         {
@@ -315,7 +315,7 @@
             this.x += this.speed * dt * Math.cos(ang);
             this.y += this.speed * dt * Math.sin(ang);
             
-            this.bobTime++;
+            this.bobTime += dt;
             this.bobX = Math.sin(this.bobTime * this.bobSpeed) * this.bobStrength * Math.cos(ang + Math.PI / 2);
             this.bobY = Math.sin(this.bobTime * this.bobSpeed) * this.bobStrength * Math.sin(ang + Math.PI / 2);
             this.x += this.bobX;
@@ -387,11 +387,11 @@
     //global tick function
     let time = Date.now();
     let ballSpawnTime = 1;
-    let ballSpawnTimer = 0;
+    let ballSpawnTimer = ballSpawnTime;
     function tick(dt)
     {
-        ballSpawnTimer += dt;
-        if(ballSpawnTimer >= ballSpawnTime)
+        ballSpawnTimer -= dt;
+        if(ballSpawnTimer <= 0)
         {
             //determine type of new ball
             let type = ball;
@@ -404,7 +404,8 @@
                 type = bertha;
         
             //reset spawn timer
-            ballSpawnTimer = 0;
+            //after score hits 200 spawn timer gets shorter and shorter to a minimum of 1/10th of a second
+            ballSpawnTimer = Math.max(  0.1, ballSpawnTime - ( Math.max(1, score / 200) - 1 )  );
 
             //spawn new ball
             let newBall = new type();
