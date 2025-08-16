@@ -173,15 +173,18 @@
         }
     }
     
+    function lerp(a, b, t) { return a + t * (b - a); }
+
     class ball extends gameObject
     {
-        prevx = 0;
-        prevy = 0;
         r = 20;
         speed = 100;
         color = "purple";
         damage = 1;
         deflected = false;
+        closeToCenter = false;
+        centerLerpTime = 1.0;
+        centerLerpTimer = this.centerLerpTime;
         touchedCenter = false;
         constructor(r = null)
         {
@@ -267,20 +270,30 @@
                 return;
             }
 
-            //calculate velocity based on previous x and y
-            const velx = this.x - this.prevx;
-            const vely = this.y - this.prevy;
-            this.prevx = this.x;
-            this.prevy = this.y;
-
             //normal movement
-            if(centerDist > paddle.r - paddle.wid / 2 + this.r)
+            if(!this.closeToCenter && centerDist > paddle.r - paddle.wid / 2 + this.r)
                 this.move(dt, centDiffx, centDiffy);
-            else //movement when close to center
+            else
+                this.closeToCenter = true;
+            
+            //movement when close to center
+            if(this.closeToCenter)
             {
+                //calculate change in position from move()
+                const prevx = this.x;
+                const prevy = this.y;
+                this.move(dt, centDiffx, centDiffy);
+                const movex = this.x - prevx;
+                const movey = this.y - prevy;
+
                 let ang = Math.atan2(centDiffy, centDiffx);
-                this.x += (100 * dt * Math.cos(ang)) * 0.2 + velx * 0.8;
-                this.y += (100 * dt * Math.sin(ang)) * 0.2 + vely * 0.8;
+
+                //lerpFactor is 0 at start of timer and 1 at end of timer
+                this.centerLerpTimer = Math.max(0, this.centerLerpTimer - dt);
+                let lerpFactor = (this.centerLerpTime - this.centerLerpTimer) / this.centerLerpTime;
+                
+                this.x = prevx + lerp(movex, 100 * dt * Math.cos(ang), lerpFactor);
+                this.y = prevy + lerp(movey, 100 * dt * Math.sin(ang), lerpFactor);
             }
         }
         move(dt, centDiffx, centDiffy)
