@@ -45,16 +45,30 @@ export class handler
         this.scene.add(gameObj.mesh);
         this.gameObjects.push(gameObj);
     }
-    removeGameObject(gameObj)
+    removeGameObject(gameObj) { this.removeGameObjects.push(gameObj); }
+    removeMesh(mesh)
     {
-        this.scene.remove(gameObj.mesh);
-        this.removeGameObjects.push(gameObj);
+        this.scene.remove(mesh);
+        if(mesh.geometry)
+            mesh.geometry.dispose();
+        if(mesh.material)
+        {
+            if(Array.isArray(mesh.material))
+                mesh.material.forEach(m => m.dispose());
+            else
+                mesh.material.dispose();
+        }
     }
     tick(dt)
     {
         for(const go of this.gameObjects)
         {
             go.tick(dt);
+        }
+
+        for(const rgo of this.removeGameObjects)
+        {
+            this.removeMesh(rgo.mesh);
         }
         this.gameObjects = this.gameObjects.filter(e => !this.removeGameObjects.includes(e));
         this.removeGameObjects = [];
@@ -74,18 +88,8 @@ export class gameObject
         this.mesh.position.z = startPos.z;
     }
     tick(dt){}
-    setPos(vector3)
-    {
-        this.mesh.position.x = vector3.x;
-        this.mesh.position.y = vector3.y;
-        this.mesh.position.z = vector3.z;
-    }
-    addPos(vector3)
-    {
-        this.mesh.position.x += vector3.x;
-        this.mesh.position.y += vector3.y;
-        this.mesh.position.z += vector3.z;
-    }
+    setPos(vector3) { this.mesh.position.copy(vector3); }
+    addPos(vector3) { this.mesh.position.add(vector3); }
 }
 
 export class ball extends gameObject
@@ -101,7 +105,7 @@ export class ball extends gameObject
         //get spawn point on edge of screen at the origin
         let viewSize = new THREE.Vector2();
         camera.getViewSize(camera.position.z, viewSize); //populates viewSize with width and height of camera's view z units away
-        let spawnPoint = getRandomPointOnRectangle(viewSize.width, viewSize.height);
+        let spawnPoint = getRandomPointOnRectangle(viewSize.width + this.radius * 2, viewSize.height + this.radius * 2);
 
         this.setPos(new THREE.Vector3(spawnPoint.x, spawnPoint.y, 0));
     }
