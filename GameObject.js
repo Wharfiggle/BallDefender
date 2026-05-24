@@ -4,19 +4,19 @@ import { getRandomPointOnRectangle } from "./RandomPointOnRectangle.js";
 //set up meshes
 const meshes = {
     ball: new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.75, 2),
+        new THREE.IcosahedronGeometry(0.65, 2),
         new THREE.MeshStandardMaterial({ color: "purple", flatShading: true })
     ),
     bob: new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.75, 2),
+        new THREE.IcosahedronGeometry(0.65, 2),
         new THREE.MeshStandardMaterial({ color: "green", flatShading: true })
     ),
     orbiter: new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.75, 2),
+        new THREE.IcosahedronGeometry(0.65, 2),
         new THREE.MeshStandardMaterial({ color: "red", flatShading: true })
     ),
     bertha: new THREE.Mesh(
-        new THREE.IcosahedronGeometry(3.0, 6),
+        new THREE.IcosahedronGeometry(2.0, 6),
         new THREE.MeshStandardMaterial({ color: "red", flatShading: true })
     ),
     paddle: new THREE.Mesh()
@@ -30,6 +30,13 @@ const meshes = {
     wireMesh.scale.setScalar(1.001);
     mesh.add(wireMesh);
 }*/
+
+function lerp(vec1, vec2, t)
+{
+    const a = vec1.clone();
+    const b = vec2.clone();
+    return a.add( b.sub(a).multiplyScalar(t) );
+}
 
 export class handler
 {
@@ -80,27 +87,37 @@ export class gameObject
     handler = null;
     constructor(mesh, startPos = null)
     {
+        console.assert(!!mesh);
+
+        this.mesh = mesh.clone();
+
         if(!startPos)
             startPos = new THREE.Vector3();
-        this.mesh = mesh.clone();
-        this.mesh.position.x = startPos.x;
-        this.mesh.position.y = startPos.y;
-        this.mesh.position.z = startPos.z;
+        this.setPos(startPos);
     }
     tick(dt){}
     setPos(vector3) { this.mesh.position.copy(vector3); }
     addPos(vector3) { this.mesh.position.add(vector3); }
+    getPos() { return this.mesh.position.clone(); }
 }
 
 export class ball extends gameObject
 {
     speed = 5;
     camera = null;
-    radius = 0.75;
-    constructor(camera)
+    radius = null;
+    closeToCenter = false;
+    centerLerp = 0;
+    centerSpeed = 5;
+    constructor(camera, mesh = null)
     {
-        super(meshes.ball);
+        super(!mesh ? meshes.ball : mesh);
+
+        this.radius = this.mesh.geometry.parameters.radius;
         this.camera = camera;
+
+        console.assert(!!camera);
+        console.assert(!!this.radius);
 
         //get spawn point on edge of screen at the origin
         let viewSize = new THREE.Vector2();
@@ -111,24 +128,77 @@ export class ball extends gameObject
     }
     tick(dt)
     {
-        //if would touch center, set position at edge of center and start shrinking
-        if(this.mesh.position.length() < this.speed * dt + this.radius)
+        const dist = this.getPos().length();
+
+        //if ball is past paddle's hittable radius, start transition to slow linear movement towards center
+        if(this.closeToCenter || dist < 3 + this.radius)
         {
-            const currScale = this.mesh.scale.x;
+            this.closeToCenter = true;
 
-            //slowly shrink until scale would be 0, then remove self
-            if(currScale > dt)
-                this.mesh.scale.setScalar(currScale - dt * this.speed);
-            else
+            //if ball would touch center, set position at edge of center and start shrinking
+            if(dist < this.speed * dt + this.radius)
             {
-                this.handler.removeGameObject(this);
-                this.handler.addGameObject(new ball(this.camera));
-            }
+                const currScale = this.mesh.scale.x;
 
-            //set pos touching edge of ball to origin with new scale
-            this.setPos(this.mesh.position.clone().normalize().multiplyScalar(this.radius * this.mesh.scale.x));
+                //slowly shrink until scale would be 0, then remove self
+                if(currScale > dt)
+                    this.mesh.scale.setScalar(currScale - dt * this.centerSpeed / this.radius / 2);
+                else
+                {
+                    this.handler.removeGameObject(this);
+                    this.handler.addGameObject(new bob(this.camera));
+                }
+
+                //set pos touching edge of ball to origin with new scale
+                this.setPos(this.getPos().normalize().multiplyScalar(this.radius * this.mesh.scale.x));
+            }
+            else //lerp into linear movement
+            {
+                if(this.centerLerp < 1)
+                    this.centerLerp = Math.min(1, this.centerLerp + dt * 3);
+                this.addPos( lerp(this.getMoveVector(dt, this.speed), this.getCenterMoveVector(dt, this.centerSpeed), this.centerLerp) );
+            }
         }
-        else //move towards center
-            this.addPos(this.mesh.position.clone().normalize().multiplyScalar(dt * -this.speed));
+        else
+            this.addPos(this.getMoveVector(dt, this.speed));
+    }
+    getMoveVector(dt, speed) { return this.getCenterMoveVector(dt, speed); }
+    getCenterMoveVector(dt, speed) { return this.getPos().normalize().multiplyScalar(dt * -speed); }
+}
+
+export class bob extends ball
+{
+    bobStartPos = null;
+    bobTime = 0;
+    bobSpeed = 6;
+    bobStrength = 0.3;
+    constructor(camera)
+    {
+        super(camera, meshes.bob);
+        this.bobStartPos = this.getPos();
+    }
+    getMoveVector(dt, speed)
+    {
+        const result = this.getCenterMoveVector(dt, speed);
+        
+        const pos = this.getPos();
+        const ang = Math.atan2(pos.y, pos.x);
+        this.bobTime += dt;
+        result.add(new THREE.Vector3(
+            Math.sin(this.bobTime * this.bobSpeed) * this.bobStrength * Math.cos(ang + Math.PI / 2),
+            Math.sin(this.bobTime * this.bobSpeed) * this.bobStrength * Math.sin(ang + Math.PI / 2), 0));
+
+        return result;
+    }
+}
+
+export class bertha extends ball
+{
+    speed = 1.5;
+    centerSpeed = 1.5;
+    damage = 5;
+    constructor(camera)
+    {
+        super(camera, meshes.bertha);
     }
 }
