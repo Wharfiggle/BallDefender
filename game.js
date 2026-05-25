@@ -32,16 +32,46 @@ scene.add(dirLight);
 //game objects
 const handler = new GameObject.handler(scene);
 
-handler.addGameObject(new GameObject.ball(camera));
+//handler.addGameObject(new GameObject.ball(camera));
 
 
 //tick
+const ballSpawnTime = 1;
+let ballSpawnTimer = ballSpawnTime;
+
 let lastTime = 0;
 function tick(t = 0)
 {
     requestAnimationFrame(tick);
     let dt = (t - lastTime) / 1000;
     lastTime = t;
+
+    //once timer is up, spawn a new ball of a random type with weighted chances
+    ballSpawnTimer -= dt;
+    if(ballSpawnTimer <= 0)
+    {
+        ballSpawnTimer = ballSpawnTime;
+        const weightedTypes = [
+            { type: GameObject.ball, weight: 0.33 },
+            { type: GameObject.bob, weight: 0.33 },
+            { type: GameObject.bertha, weight: 0.33 }
+        ]
+        const rn = Math.random();
+
+        let weightTotal = 0;
+        let type = GameObject.ball;
+        for(const wt of weightedTypes)
+        {
+            weightTotal += wt.weight;
+            if(rn < weightTotal)
+            {
+                type = wt.type;
+                break;
+            }
+        }
+
+        handler.addGameObject(new type(camera));
+    }
     
     handler.tick(dt);
 

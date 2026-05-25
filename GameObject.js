@@ -144,10 +144,7 @@ export class ball extends gameObject
                 if(currScale > dt)
                     this.mesh.scale.setScalar(currScale - dt * this.centerSpeed / this.radius / 2);
                 else
-                {
                     this.handler.removeGameObject(this);
-                    this.handler.addGameObject(new bob(this.camera));
-                }
 
                 //set pos touching edge of ball to origin with new scale
                 this.setPos(this.getPos().normalize().multiplyScalar(this.radius * this.mesh.scale.x));
