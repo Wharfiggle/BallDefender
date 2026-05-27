@@ -1,12 +1,20 @@
 import * as THREE from "three";
 import * as GameObject from "./GameObject.js";
 
-//set up canvas
+//set up three renderer
 let w = window.innerWidth;
 let h = window.innerHeight;
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({
+    canvas: document.getElementById("three"),
+    antialias: true
+});
 renderer.setSize(w, h);
-document.body.appendChild(renderer.domElement);
+
+//set up ui canvas
+const canvas = document.getElementById("ui");
+canvas.width = w;
+canvas.height = h;
+const ui = canvas.getContext("2d");
 
 //set up scene
 const fov = 50;
@@ -16,24 +24,23 @@ const far = 30;
 const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
 camera.position.z = 20;
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xffffff);
+scene.background = new THREE.Color(0x000000);
 
 //set up lighting
-const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444);
+const hemiLight = new THREE.HemisphereLight(0x808080, 0x404040);
 scene.add(hemiLight);
-const dirLight = new THREE.DirectionalLight(0xffffff, 2);
+const dirLight = new THREE.DirectionalLight(0xcccccc, 2);
 dirLight.position.set(-1, 1, 1);
-scene.add(dirLight);
-//const pointLight = new THREE.PointLight(0xffaaaa, 150, 40);
-//pointLight.position.set(0, 0, 6);
-//scene.add(pointLight);
+//scene.add(dirLight);
+const pointLight = new THREE.PointLight(0xffffff, 150, 40);
+pointLight.position.z = 1.5;
+scene.add(pointLight);
+const pointLightBack = new THREE.PointLight(0xffffff, 150, 40);
+pointLightBack.position.z = -1;
+scene.add(pointLightBack);
 
-
-//game objects
-const handler = new GameObject.handler(scene);
-
-//handler.addGameObject(new GameObject.ball(camera));
-
+//game object handler
+const handler = new GameObject.handler(scene, ui);
 
 //tick
 const ballSpawnTime = 1;
@@ -72,6 +79,14 @@ function tick(t = 0)
 
         handler.addGameObject(new type(camera));
     }
+
+    //clear previously drawn ui frame
+    ui.clearRect(0, 0, w, h);
+
+    ui.fillStyle = "white";
+    ui.beginPath();
+	ui.arc(w/2, h/2, 5, 0, Math.PI * 2);
+	ui.fill();
     
     handler.tick(dt);
 

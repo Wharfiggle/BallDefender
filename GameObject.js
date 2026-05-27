@@ -5,19 +5,19 @@ import { getRandomPointOnRectangle } from "./RandomPointOnRectangle.js";
 const meshes = {
     ball: new THREE.Mesh(
         new THREE.IcosahedronGeometry(0.65, 2),
-        new THREE.MeshStandardMaterial({ color: "purple", flatShading: true })
+        new THREE.MeshStandardMaterial({ color: "purple", flatShading: false })
     ),
     bob: new THREE.Mesh(
         new THREE.IcosahedronGeometry(0.65, 2),
-        new THREE.MeshStandardMaterial({ color: "green", flatShading: true })
+        new THREE.MeshStandardMaterial({ color: "green", flatShading: false })
     ),
     orbiter: new THREE.Mesh(
         new THREE.IcosahedronGeometry(0.65, 2),
-        new THREE.MeshStandardMaterial({ color: "red", flatShading: true })
+        new THREE.MeshStandardMaterial({ color: "blue", flatShading: false })
     ),
     bertha: new THREE.Mesh(
         new THREE.IcosahedronGeometry(2.0, 6),
-        new THREE.MeshStandardMaterial({ color: "red", flatShading: true })
+        new THREE.MeshStandardMaterial({ color: "red", flatShading: false })
     ),
     paddle: new THREE.Mesh()
 }
@@ -42,13 +42,15 @@ export class handler
 {
     gameObjects = [];
     removeGameObjects = [];
-    constructor(scene)
+    constructor(scene, ui)
     {
         this.scene = scene;
+        this.ui = ui;
     }
     addGameObject(gameObj)
     {
         gameObj.handler = this;
+        gameObj.ui = this.ui;
         this.scene.add(gameObj.mesh);
         this.gameObjects.push(gameObj);
     }

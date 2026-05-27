@@ -6,6 +6,8 @@
         <title>Ball Defender</title>
         <style>
             body { margin: 0; }
+            #container { position: relative; width: 100vw; height: 100vh; }
+            #three, #ui { position: absolute; top: 0; left: 0; }
         </style>
         <script type="importmap">
             {
@@ -17,6 +19,10 @@
         </script>
     </head>
     <body>
+        <div id="container">
+            <canvas id="three" touch-action="none"></canvas>
+            <canvas id="ui" touch-action="none"></canvas>
+        </div>
         <script type="module" src="game.js"></script>
     </body>
 </html>
