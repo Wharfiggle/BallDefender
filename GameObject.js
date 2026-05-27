@@ -85,20 +85,32 @@ export class handler
 export class gameObject
 {
     handler = null;
-    constructor(mesh, startPos = null)
+    addedDepth = 0;
+    constructor(mesh, startPos = null, addedDepth = 0)
     {
         console.assert(!!mesh);
 
         this.mesh = mesh.clone();
+
+        this.addedDepth = addedDepth;
 
         if(!startPos)
             startPos = new THREE.Vector3();
         this.setPos(startPos);
     }
     tick(dt){}
-    setPos(vector3) { this.mesh.position.copy(vector3); }
+    setPos(vector3)
+    {
+        this.mesh.position.copy(vector3);
+        this.mesh.position.z += this.addedDepth;
+    }
     addPos(vector3) { this.mesh.position.add(vector3); }
-    getPos() { return this.mesh.position.clone(); }
+    getPos()
+    {
+        const vec = this.mesh.position.clone();
+        vec.z -= this.addedDepth;
+        return vec;
+    }
 }
 
 export class ball extends gameObject
@@ -109,11 +121,13 @@ export class ball extends gameObject
     closeToCenter = false;
     centerLerp = 0;
     centerSpeed = 5;
-    constructor(camera, mesh = null)
+    constructor(camera, mesh = null, addedDepth = 0)
     {
-        super(!mesh ? meshes.ball : mesh);
+        super(!mesh ? meshes.ball : mesh, null, addedDepth);
 
         this.radius = this.mesh.geometry.parameters.radius;
+        if(addedDepth == 0)
+            this.addedDepth = this.radius;
         this.camera = camera;
 
         console.assert(!!camera);
@@ -121,8 +135,9 @@ export class ball extends gameObject
 
         //get spawn point on edge of screen at the origin
         let viewSize = new THREE.Vector2();
-        camera.getViewSize(camera.position.z, viewSize); //populates viewSize with width and height of camera's view z units away
-        let spawnPoint = getRandomPointOnRectangle(viewSize.width + this.radius * 2, viewSize.height + this.radius * 2);
+        camera.getViewSize(camera.position.z - this.addedDepth, viewSize); //populates viewSize with width and height of camera's view z units away
+        const spawnOffset = this.radius * 3;
+        const spawnPoint = getRandomPointOnRectangle(viewSize.width + spawnOffset, viewSize.height + spawnOffset);
 
         this.setPos(new THREE.Vector3(spawnPoint.x, spawnPoint.y, 0));
     }
@@ -196,6 +211,6 @@ export class bertha extends ball
     damage = 5;
     constructor(camera)
     {
-        super(camera, meshes.bertha);
+        super(camera, meshes.bertha, -2);
     }
 }
