@@ -50,8 +50,8 @@ document.addEventListener("mousemove", event => {
 });
 
 //touch input
-document.addEventListener("touchmove", handleTouch);
-document.addEventListener("touchstart", handleTouch);
+document.addEventListener("touchmove", handleTouch, { passive: false });
+document.addEventListener("touchstart", handleTouch, { passive: false });
 function handleTouch(event)
 {
     event.preventDefault();
