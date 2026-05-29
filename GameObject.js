@@ -193,14 +193,16 @@ export class ball extends gameObject
         const dist = this.getPos().length();
 
         //if ball is within hitting distance and alligned with paddle's angle, deflect
-        if(!this.shrinking && paddleObj)
+        if(!this.shrinking)
         {
-            const minDist = paddleObj.radius + paddleObj.width - this.radius;
-            const maxDist = paddleObj.radius + paddleObj.width + this.radius;
+            const pr = !!paddleObj ? 2.5 : paddleObj.radius;
+            const pw = !!paddleObj ? 0.2 : paddleObj.width;
+            const minDist = pr + pw - this.radius;
+            const maxDist = pr + pw + this.radius;
             if(!this.deflected && dist >= minDist && dist <= maxDist)
             {
                 this.closeToCenter = true;
-                if(this.getPos().normalize().dot(paddleObj?.getPos().normalize()) >= this.deflectThreshold)
+                if(!!paddleObj && this.getPos().normalize().dot(paddleObj.getPos().normalize()) >= this.deflectThreshold)
                 {
                     this.deflected = true;
                     this.speed = -this.speed;
