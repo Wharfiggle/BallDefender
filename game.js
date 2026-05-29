@@ -44,18 +44,33 @@ const handler = new GameObject.handler(scene, ui, window);
 handler.addGameObject(new GameObject.paddle());
 
 
-//custom event for mouse input
+//mouse input
 window.addEventListener("mousemove", event => {
+    dispatchMouseEvent(event);
+});
+
+//touch input
+window.addEventListener("touchmove", handleTouch);
+window.addEventListener("touchstart", handleTouch);
+function handleTouch(event)
+{
+    event.preventDefault();
+    const touchEvent = event.touches[0];
+    dispatchMouseEvent(touchEvent);
+}
+
+//custom mouseEvent
+function dispatchMouseEvent(event)
+{
     //convert to normalized device coordinates (NDC) (-1 to 1)
     const coordX = (event.clientX / window.innerWidth) * 2 - 1;
     const coordY = 1 - (event.clientY / window.innerHeight) * 2;
-
     window.dispatchEvent( new CustomEvent("mouseEvent", { 
         detail: {
             pos: new THREE.Vector2(event.clientX, event.clientY),
             coord: new THREE.Vector2(coordX, coordY)
         }}) );
-});
+}
 
 
 //tick
