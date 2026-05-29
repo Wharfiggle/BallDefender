@@ -40,18 +40,18 @@ pointLightBack.position.z = -1;
 scene.add(pointLightBack);
 
 //game objects
-const handler = new GameObject.handler(scene, ui, window);
+const handler = new GameObject.handler(scene, ui, document);
 handler.addGameObject(new GameObject.paddle());
 
 
 //mouse input
-window.addEventListener("mousemove", event => {
+document.addEventListener("mousemove", event => {
     dispatchMouseEvent(event);
 });
 
 //touch input
-window.addEventListener("touchmove", handleTouch);
-window.addEventListener("touchstart", handleTouch);
+document.addEventListener("touchmove", handleTouch);
+document.addEventListener("touchstart", handleTouch);
 function handleTouch(event)
 {
     event.preventDefault();
@@ -63,9 +63,9 @@ function handleTouch(event)
 function dispatchMouseEvent(event)
 {
     //convert to normalized device coordinates (NDC) (-1 to 1)
-    const coordX = (event.clientX / window.innerWidth) * 2 - 1;
-    const coordY = 1 - (event.clientY / window.innerHeight) * 2;
-    window.dispatchEvent( new CustomEvent("mouseEvent", { 
+    const coordX = (event.clientX / w) * 2 - 1;
+    const coordY = 1 - (event.clientY / h) * 2;
+    document.dispatchEvent( new CustomEvent("mouseEvent", { 
         detail: {
             pos: new THREE.Vector2(event.clientX, event.clientY),
             coord: new THREE.Vector2(coordX, coordY)

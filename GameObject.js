@@ -47,18 +47,18 @@ export class handler
 {
     gameObjects = [];
     removeGameObjects = [];
-    constructor(scene, ui, window)
+    constructor(scene, ui, document)
     {
         this.scene = scene;
         this.ui = ui;
-        this.window = window;
+        this.document = document;
     }
     addGameObject(gameObj)
     {
         gameObj.handler = this;
         gameObj.ui = this.ui;
-        gameObj.window = this.window;
-        gameObj.postInit(this, this.ui, this.window);
+        gameObj.document = this.document;
+        gameObj.postInit(this, this.ui, this.document);
         this.scene.add(gameObj.mesh);
         this.gameObjects.push(gameObj);
     }
@@ -108,7 +108,7 @@ export class gameObject
             startPos = new THREE.Vector3();
         this.setPos(startPos);
     }
-    postInit(handler, ui, window){}
+    postInit(handler, ui, document){}
     tick(dt){}
     setPos(vector3)
     {
@@ -135,10 +135,10 @@ export class paddle extends gameObject
         this.width = this.mesh.geometry.parameters.height;
         paddleObj = this;
     }
-    postInit(handler, ui, window)
+    postInit(handler, ui, document)
     {
         //respond to mouseEvent fired from game.js
-        window.addEventListener("mouseEvent", event => {
+        document.addEventListener("mouseEvent", event => {
             const e = event.detail;
             const ang = Math.atan2(e.coord.y, e.coord.x);
             this.setPos(new THREE.Vector3(Math.cos(ang) * this.radius, Math.sin(ang) * this.radius));
