@@ -195,10 +195,8 @@ export class ball extends gameObject
         //if ball is within hitting distance and alligned with paddle's angle, deflect
         if(!this.shrinking)
         {
-            const pr = !!paddleObj ? 2.5 : paddleObj.radius;
-            const pw = !!paddleObj ? 0.2 : paddleObj.width;
-            const minDist = pr + pw - this.radius;
-            const maxDist = pr + pw + this.radius;
+            const minDist = paddleObj?.radius + paddleObj?.width - this.radius;
+            const maxDist = paddleObj?.radius + paddleObj?.width + this.radius;
             if(!this.deflected && dist >= minDist && dist <= maxDist)
             {
                 this.closeToCenter = true;
@@ -208,6 +206,8 @@ export class ball extends gameObject
                     this.speed = -this.speed;
                 }
             }
+            else if(dist < Math.abs(minDist)) //ensure closeToCenter flag is toggled even if frames are skipped or paddleObj is missing
+                this.closeToCenter = true;
         }
 
         //if ball wasn't deflected in time, transition to slow linear movement towards center
