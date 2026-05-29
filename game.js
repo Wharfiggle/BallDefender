@@ -39,8 +39,24 @@ const pointLightBack = new THREE.PointLight(0xffffff, 150, 40);
 pointLightBack.position.z = -1;
 scene.add(pointLightBack);
 
-//game object handler
-const handler = new GameObject.handler(scene, ui);
+//game objects
+const handler = new GameObject.handler(scene, ui, window);
+handler.addGameObject(new GameObject.paddle());
+
+
+//custom event for mouse input
+window.addEventListener("mousemove", event => {
+    //convert to normalized device coordinates (NDC) (-1 to 1)
+    const coordX = (event.clientX / window.innerWidth) * 2 - 1;
+    const coordY = 1 - (event.clientY / window.innerHeight) * 2;
+
+    window.dispatchEvent( new CustomEvent("mouseEvent", { 
+        detail: {
+            pos: new THREE.Vector2(event.clientX, event.clientY),
+            coord: new THREE.Vector2(coordX, coordY)
+        }}) );
+});
+
 
 //tick
 const ballSpawnTime = 1;
@@ -82,11 +98,6 @@ function tick(t = 0)
 
     //clear previously drawn ui frame
     ui.clearRect(0, 0, w, h);
-
-    ui.fillStyle = "white";
-    ui.beginPath();
-	ui.arc(w/2, h/2, 5, 0, Math.PI * 2);
-	ui.fill();
     
     handler.tick(dt);
 
@@ -96,6 +107,8 @@ function tick(t = 0)
         w = window.innerWidth;
         h = window.innerHeight;
         renderer.setSize(w, h);
+        canvas.width = w;
+        canvas.height = h;
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
     }

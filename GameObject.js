@@ -4,23 +4,28 @@ import { getRandomPointOnRectangle } from "./RandomPointOnRectangle.js";
 //set up meshes
 const meshes = {
     ball: new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.65, 2),
+        new THREE.IcosahedronGeometry(0.5, 2),
         new THREE.MeshStandardMaterial({ color: "purple", flatShading: false })
     ),
     bob: new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.65, 2),
+        new THREE.IcosahedronGeometry(0.5, 2),
         new THREE.MeshStandardMaterial({ color: "green", flatShading: false })
     ),
     orbiter: new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.65, 2),
+        new THREE.IcosahedronGeometry(0.5, 2),
         new THREE.MeshStandardMaterial({ color: "blue", flatShading: false })
     ),
     bertha: new THREE.Mesh(
-        new THREE.IcosahedronGeometry(2.0, 6),
+        new THREE.IcosahedronGeometry(1.5, 6),
         new THREE.MeshStandardMaterial({ color: "red", flatShading: false })
     ),
-    paddle: new THREE.Mesh()
+    paddle: new THREE.Mesh(
+        new THREE.BoxGeometry(2.0, 0.2, 2.7),
+        new THREE.MeshStandardMaterial({ color: "white" })
+    )
 }
+
+let paddleObj = null;
 
 //add wireframe to meshes
 /*for(const [key, mesh] of Object.entries(meshes))
@@ -42,15 +47,18 @@ export class handler
 {
     gameObjects = [];
     removeGameObjects = [];
-    constructor(scene, ui)
+    constructor(scene, ui, window)
     {
         this.scene = scene;
         this.ui = ui;
+        this.window = window;
     }
     addGameObject(gameObj)
     {
         gameObj.handler = this;
         gameObj.ui = this.ui;
+        gameObj.window = this.window;
+        gameObj.postInit(this, this.ui, this.window);
         this.scene.add(gameObj.mesh);
         this.gameObjects.push(gameObj);
     }
@@ -100,6 +108,7 @@ export class gameObject
             startPos = new THREE.Vector3();
         this.setPos(startPos);
     }
+    postInit(handler, ui, window){}
     tick(dt){}
     setPos(vector3)
     {
@@ -115,17 +124,52 @@ export class gameObject
     }
 }
 
+export class paddle extends gameObject
+{
+    radius = 2.5;
+    width = null;
+    constructor()
+    {
+        super(meshes.paddle);
+        this.setPos(new THREE.Vector3(0, this.radius, 0));
+        this.width = this.mesh.geometry.parameters.height;
+        paddleObj = this;
+    }
+    postInit(handler, ui, window)
+    {
+        //respond to mouseEvent fired from game.js
+        window.addEventListener("mouseEvent", event => {
+            const e = event.detail;
+            const ang = Math.atan2(e.coord.y, e.coord.x);
+            this.setPos(new THREE.Vector3(Math.cos(ang) * this.radius, Math.sin(ang) * this.radius));
+            this.mesh.rotation.z = ang + Math.PI / 2;
+        })
+    }
+    tick(dt)
+    {
+        //draw white dot in center
+        this.ui.fillStyle = "white";
+        this.ui.beginPath();
+	    this.ui.arc(this.ui.canvas.width / 2, this.ui.canvas.height / 2, 5, 0, Math.PI * 2);
+	    this.ui.fill();
+    }
+}
+
 export class ball extends gameObject
 {
     speed = 5;
     camera = null;
     radius = null;
     closeToCenter = false;
+    deflected = false;
+    shrinking = false;
+    deflectThreshold = 0.85;
     centerLerp = 0;
     centerSpeed = 5;
+    cullDistance = null;
     constructor(camera, mesh = null, addedDepth = 0)
     {
-        super(!mesh ? meshes.ball : mesh, null, addedDepth);
+        super(!mesh ? meshes.ball : mesh, new THREE.Vector3(), addedDepth);
 
         this.radius = this.mesh.geometry.parameters.radius;
         if(addedDepth == 0)
@@ -140,6 +184,7 @@ export class ball extends gameObject
         camera.getViewSize(camera.position.z - this.addedDepth, viewSize); //populates viewSize with width and height of camera's view z units away
         const spawnOffset = this.radius * 3;
         const spawnPoint = getRandomPointOnRectangle(viewSize.width + spawnOffset, viewSize.height + spawnOffset);
+        this.cullDistance = viewSize.length();
 
         this.setPos(new THREE.Vector3(spawnPoint.x, spawnPoint.y, 0));
     }
@@ -147,14 +192,30 @@ export class ball extends gameObject
     {
         const dist = this.getPos().length();
 
-        //if ball is past paddle's hittable radius, start transition to slow linear movement towards center
-        if(this.closeToCenter || dist < 3 + this.radius)
+        //if ball is within hitting distance and alligned with paddle's angle, deflect
+        if(!this.shrinking && paddleObj)
         {
-            this.closeToCenter = true;
-
-            //if ball would touch center, set position at edge of center and start shrinking
-            if(dist < this.speed * dt + this.radius)
+            const minDist = paddleObj.radius + paddleObj.width - this.radius;
+            const maxDist = paddleObj.radius + paddleObj.width + this.radius;
+            if(!this.deflected && dist >= minDist && dist <= maxDist)
             {
+                this.closeToCenter = true;
+                if(this.getPos().normalize().dot(paddleObj?.getPos().normalize()) >= this.deflectThreshold)
+                {
+                    this.deflected = true;
+                    this.speed = -this.speed;
+                }
+            }
+        }
+
+        //if ball wasn't deflected in time, transition to slow linear movement towards center
+        if(this.closeToCenter && !this.deflected)
+        {
+            //if ball would touch center, set position at edge of center and start shrinking
+            if(this.shrinking || dist < this.speed * dt + this.radius)
+            {
+                this.shrinking = true;
+
                 const currScale = this.mesh.scale.x;
 
                 //slowly shrink until scale would be 0, then remove self
@@ -174,7 +235,13 @@ export class ball extends gameObject
             }
         }
         else
+        {
             this.addPos(this.getMoveVector(dt, this.speed));
+
+            //cull once far enough away if deflected
+            if(this.deflected && dist > this.cullDistance)
+                this.handler.removeGameObject(this);
+        }
     }
     getMoveVector(dt, speed) { return this.getCenterMoveVector(dt, speed); }
     getCenterMoveVector(dt, speed) { return this.getPos().normalize().multiplyScalar(dt * -speed); }
@@ -211,6 +278,7 @@ export class bertha extends ball
     speed = 1.5;
     centerSpeed = 1.5;
     damage = 5;
+    deflectThreshold = 0.7;
     constructor(camera)
     {
         super(camera, meshes.bertha, -2);
