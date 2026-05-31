@@ -26,6 +26,7 @@ const meshes = {
 }
 
 let paddleObj = null;
+let scoreObj = null;
 
 //add wireframe to meshes
 /*for(const [key, mesh] of Object.entries(meshes))
@@ -59,12 +60,14 @@ export class handler
         gameObj.ui = this.ui;
         gameObj.document = this.document;
         gameObj.postInit(this, this.ui, this.document);
+        if(gameObj.mesh)
         this.scene.add(gameObj.mesh);
         this.gameObjects.push(gameObj);
     }
     removeGameObject(gameObj) { this.removeGameObjects.push(gameObj); }
     removeMesh(mesh)
     {
+        if(!mesh) return;
         this.scene.remove(mesh);
         if(mesh.geometry)
             mesh.geometry.dispose();
@@ -96,10 +99,12 @@ export class gameObject
 {
     handler = null;
     addedDepth = 0;
-    constructor(mesh, startPos = null, addedDepth = 0)
+    constructor(mesh = null, startPos = null, addedDepth = 0)
     {
-        console.assert(!!mesh);
+        //console.assert(!!mesh);
 
+
+        if(mesh)
         this.mesh = mesh.clone();
 
         this.addedDepth = addedDepth;
@@ -112,6 +117,7 @@ export class gameObject
     tick(dt){}
     setPos(vector3)
     {
+        if(!this.mesh) return;
         this.mesh.position.copy(vector3);
         this.mesh.position.z += this.addedDepth;
     }
@@ -155,8 +161,31 @@ export class paddle extends gameObject
     }
 }
 
+export class scoreKeeper extends gameObject
+{
+    score = 0;
+    constructor()
+    {
+        super();
+        scoreObj = this;
+    }
+    addScore(num){
+        this.score += num;
+    }
+    subtractScore(num){
+        this.score -= num;
+    }
+    tick(dt)
+    {
+        this.ui.fillStyle = "white";
+        this.ui.font = "48px serif";
+        this.ui.fillText(this.score, 10, 50);
+    }
+}
+
 export class ball extends gameObject
 {
+    damage = 1;
     speed = 5;
     camera = null;
     radius = null;
@@ -204,6 +233,7 @@ export class ball extends gameObject
                 {
                     this.deflected = true;
                     this.speed = -this.speed;
+                    scoreObj.addScore(1);
                 }
             }
             else if(dist < Math.abs(minDist)) //ensure closeToCenter flag is toggled even if frames are skipped or paddleObj is missing
@@ -223,8 +253,10 @@ export class ball extends gameObject
                 //slowly shrink until scale would be 0, then remove self
                 if(currScale > dt)
                     this.mesh.scale.setScalar(currScale - dt * this.centerSpeed / this.radius / 2);
-                else
+                else{
                     this.handler.removeGameObject(this);
+                    scoreObj.subtractScore(this.damage);
+                }
 
                 //set pos touching edge of ball to origin with new scale
                 this.setPos(this.getPos().normalize().multiplyScalar(this.radius * this.mesh.scale.x));
