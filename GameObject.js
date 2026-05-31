@@ -29,13 +29,14 @@ let paddleObj = null;
 let scoreObj = null;
 
 //add wireframe to meshes
-/*for(const [key, mesh] of Object.entries(meshes))
+for(const [key, mesh] of Object.entries(meshes))
 {
-    const wireMat = new THREE.MeshBasicMaterial({ color: "white", wireframe: true });
-    const wireMesh = new THREE.Mesh(mesh.geometry, wireMat);
-    wireMesh.scale.setScalar(1.001);
-    mesh.add(wireMesh);
-}*/
+    if(key != "paddle")
+    {
+mesh.castShadow = true;
+mesh.receiveShadow = true;
+    }
+}
 
 function lerp(vec1, vec2, t)
 {

@@ -9,6 +9,8 @@ const renderer = new THREE.WebGLRenderer({
     antialias: true
 });
 renderer.setSize(w, h);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 //set up ui canvas
 const canvas = document.getElementById("ui");
@@ -34,9 +36,11 @@ dirLight.position.set(-1, 1, 1);
 //scene.add(dirLight);
 const pointLight = new THREE.PointLight(0xffffff, 150, 40);
 pointLight.position.z = 1.5;
+pointLight.castShadow = true;
 scene.add(pointLight);
 const pointLightBack = new THREE.PointLight(0xffffff, 150, 40);
 pointLightBack.position.z = -1;
+pointLightBack.castShadow = true;
 scene.add(pointLightBack);
 
 //game objects
