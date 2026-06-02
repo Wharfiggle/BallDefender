@@ -20,7 +20,7 @@ const meshes = {
         new THREE.MeshStandardMaterial({ color: "red", flatShading: false })
     ),
     paddle: new THREE.Mesh(
-        new THREE.BoxGeometry(2.0, 0.2, 2.7),
+        new THREE.BoxGeometry(2.0, 0.2, 2.8),
         new THREE.MeshStandardMaterial({ color: "white" })
     )
 }
@@ -28,14 +28,13 @@ const meshes = {
 let paddleObj = null;
 let scoreObj = null;
 
-//add wireframe to meshes
+//add shadows to meshes except paddle
 for(const [key, mesh] of Object.entries(meshes))
 {
+    if(key != "berthaasdasd")
+        mesh.receiveShadow = true;
     if(key != "paddle")
-    {
-mesh.castShadow = true;
-mesh.receiveShadow = true;
-    }
+        mesh.castShadow = true;
 }
 
 function lerp(vec1, vec2, t)
@@ -62,13 +61,14 @@ export class handler
         gameObj.document = this.document;
         gameObj.postInit(this, this.ui, this.document);
         if(gameObj.mesh)
-        this.scene.add(gameObj.mesh);
+            this.scene.add(gameObj.mesh);
         this.gameObjects.push(gameObj);
     }
     removeGameObject(gameObj) { this.removeGameObjects.push(gameObj); }
     removeMesh(mesh)
     {
-        if(!mesh) return;
+        if(!mesh)
+            return;
         this.scene.remove(mesh);
         if(mesh.geometry)
             mesh.geometry.dispose();
@@ -100,13 +100,11 @@ export class gameObject
 {
     handler = null;
     addedDepth = 0;
+    pos = new THREE.Vector3();
     constructor(mesh = null, startPos = null, addedDepth = 0)
     {
-        //console.assert(!!mesh);
-
-
         if(mesh)
-        this.mesh = mesh.clone();
+            this.mesh = mesh.clone();
 
         this.addedDepth = addedDepth;
 
@@ -118,14 +116,20 @@ export class gameObject
     tick(dt){}
     setPos(vector3)
     {
-        if(!this.mesh) return;
-        this.mesh.position.copy(vector3);
-        this.mesh.position.z += this.addedDepth;
+        this.pos.copy(vector3);
+        this.pos.z += this.addedDepth;
+        if(!!this.mesh)
+            this.mesh.position.copy(this.pos);
     }
-    addPos(vector3) { this.mesh.position.add(vector3); }
+    addPos(vector3)
+    {
+        this.pos.add(vector3);
+        if(!!this.mesh)
+            this.mesh.position.copy(this.pos);
+    }
     getPos()
     {
-        const vec = this.mesh.position.clone();
+        const vec = this.pos.clone();
         vec.z -= this.addedDepth;
         return vec;
     }
@@ -135,6 +139,7 @@ export class paddle extends gameObject
 {
     radius = 2.5;
     width = null;
+    pointLight = null;
     constructor()
     {
         super(meshes.paddle);
@@ -144,14 +149,27 @@ export class paddle extends gameObject
     }
     postInit(handler, ui, document)
     {
+        this.pointLight = new THREE.PointLight(0xffffff, 5, 15);
+        this.pointLight.castShadow = true;
+        this.pointLight.position.copy(this.pos);
+        handler.scene.add(this.pointLight);
+
         //respond to mouseEvent fired from game.js
         document.addEventListener("mouseEvent", event => {
             const e = event.detail;
             const ang = Math.atan2(e.coord.y, e.coord.x);
-            this.setPos(new THREE.Vector3(Math.cos(ang) * this.radius, Math.sin(ang) * this.radius));
+            const dir = new THREE.Vector3(Math.cos(ang), Math.sin(ang));
+            this.setPos(dir.clone().multiplyScalar(this.radius));
+            this.pointLight.position.copy(dir.clone().multiplyScalar(this.radius + this.width));
             this.mesh.rotation.z = ang + Math.PI / 2;
-        })
+        });
     }
+    /*setPos(vector3)
+    {
+        super.setPos(vector3);
+        if(!!this.pointLight)
+            this.pointLight.position.copy(this.pos);
+    }*/
     tick(dt)
     {
         //draw white dot in center
@@ -174,7 +192,7 @@ export class scoreKeeper extends gameObject
         this.score += num;
     }
     subtractScore(num){
-        this.score -= num;
+        this.score = Math.max(0, this.score - num);
     }
     tick(dt)
     {
@@ -284,14 +302,12 @@ export class ball extends gameObject
 
 export class bob extends ball
 {
-    bobStartPos = null;
     bobTime = 0;
     bobSpeed = 6;
     bobStrength = 0.3;
     constructor(camera)
     {
         super(camera, meshes.bob);
-        this.bobStartPos = this.getPos();
     }
     getMoveVector(dt, speed)
     {
@@ -305,6 +321,24 @@ export class bob extends ball
             Math.sin(this.bobTime * this.bobSpeed) * this.bobStrength * Math.sin(ang + Math.PI / 2), 0));
 
         return result;
+    }
+}
+
+export class orbiter extends ball
+{
+    orbitSpeed = 25;
+    constructor(camera)
+    {
+        super(camera, meshes.orbiter);
+    }
+    getMoveVector(dt, speed)
+    {
+        const pos = this.getPos();
+        const dist = pos.clone().add(this.getCenterMoveVector(dt, speed)).length();
+        const ang = Math.atan2(pos.y, pos.x) + this.orbitSpeed * dt / dist;
+        
+        const dir = new THREE.Vector3(Math.cos(ang), Math.sin(ang));
+        return dir.multiplyScalar(dist).sub(pos);
     }
 }
 

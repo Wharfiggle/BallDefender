@@ -79,7 +79,7 @@ function dispatchMouseEvent(event)
 
 
 //tick
-const ballSpawnTime = 1;
+const ballSpawnTime = 0.2;
 let ballSpawnTimer = ballSpawnTime;
 
 let lastTime = 0;
@@ -95,9 +95,10 @@ function tick(t = 0)
     {
         ballSpawnTimer = ballSpawnTime;
         const weightedTypes = [
-            { type: GameObject.ball, weight: 0.33 },
-            { type: GameObject.bob, weight: 0.33 },
-            { type: GameObject.bertha, weight: 0.33 }
+            { type: GameObject.ball, weight: 0.25 },
+            { type: GameObject.bob, weight: 0.25 },
+            { type: GameObject.orbiter, weight: 0.25 },
+            { type: GameObject.bertha, weight: 0.25 }
         ]
         const rn = Math.random();
 
