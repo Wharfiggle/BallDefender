@@ -13,7 +13,7 @@ const meshes = {
     ),
     orbiter: new THREE.Mesh(
         new THREE.IcosahedronGeometry(0.5, 2),
-        new THREE.MeshStandardMaterial({ color: "blue", flatShading: false })
+        new THREE.MeshStandardMaterial({ color: "navy", flatShading: false })
     ),
     bertha: new THREE.Mesh(
         new THREE.IcosahedronGeometry(1.5, 6),

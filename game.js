@@ -89,6 +89,10 @@ function tick(t = 0)
     let dt = (t - lastTime) / 1000;
     lastTime = t;
 
+    //dont process this frame if it's is after a large accumulation of skipped frames
+    if(dt > 1.0)
+        return;
+
     //once timer is up, spawn a new ball of a random type with weighted chances
     ballSpawnTimer -= dt;
     if(ballSpawnTimer <= 0)
