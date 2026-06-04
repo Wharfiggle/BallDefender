@@ -2,23 +2,28 @@ import * as THREE from "three";
 import { getRandomPointOnRectangle } from "./RandomPointOnRectangle.js";
 
 //set up meshes
+const standardBallMesh = new THREE.IcosahedronGeometry(0.5, 2); 
 const meshes = {
     ball: new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.5, 2),
-        new THREE.MeshStandardMaterial({ color: "purple", flatShading: false })
+        standardBallMesh,
+        new THREE.MeshStandardMaterial({ color: "purple"})
     ),
     bob: new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.5, 2),
-        new THREE.MeshStandardMaterial({ color: "green", flatShading: false })
+        standardBallMesh,
+        new THREE.MeshStandardMaterial({ color: "green"})
     ),
     orbiter: new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.5, 2),
-        new THREE.MeshStandardMaterial({ color: "navy", flatShading: false })
+        standardBallMesh,
+        new THREE.MeshStandardMaterial({ color: "navy"})
     ),
     bertha: new THREE.Mesh(
         new THREE.IcosahedronGeometry(1.5, 6),
-        new THREE.MeshStandardMaterial({ color: "red", flatShading: false })
+        new THREE.MeshStandardMaterial({ color: "red"})
     ),
+    /*point: new THREE.Mesh(
+        new THREE.IcosahedronGeometry(0.1, 1),
+        new THREE.MeshStandardMaterial({ color: "yellow", emissive: true, emissiveIntensity: 1 })
+    ),*/
     paddle: new THREE.Mesh(
         new THREE.BoxGeometry(2.0, 0.2, 2.8),
         new THREE.MeshStandardMaterial({ color: "white" })
@@ -31,7 +36,7 @@ let scoreObj = null;
 //add shadows to meshes except paddle
 for(const [key, mesh] of Object.entries(meshes))
 {
-    if(key != "berthaasdasd")
+    if(key == "bertha")
         mesh.receiveShadow = true;
     if(key != "paddle")
         mesh.castShadow = true;
@@ -44,17 +49,32 @@ function lerp(vec1, vec2, t)
     return a.add( b.sub(a).multiplyScalar(t) );
 }
 
+function worldToScreen(vector3, camera, screenWidth, screenHeight)
+{
+    const screenPos = vector3.clone().project(camera);
+    return new THREE.Vector2((1 + screenPos.x) * screenWidth / 2, (1 - screenPos.y) * screenHeight / 2);
+}
+
 export class handler
 {
     gameObjects = [];
     removeGameObjects = [];
+    unshiftGameObjects = [];
     constructor(scene, ui, document)
     {
         this.scene = scene;
         this.ui = ui;
         this.document = document;
+
+        //preload meshes and keep in memory to prevent lag spikes on spawns
+        for(const [key, mesh] of Object.entries(meshes))
+        {
+            const copy = mesh.clone();
+            copy.scale.setScalar(0);
+            scene.add(copy);
+        }        
     }
-    addGameObject(gameObj)
+    addGameObject(gameObj, under = false)
     {
         gameObj.handler = this;
         gameObj.ui = this.ui;
@@ -62,7 +82,11 @@ export class handler
         gameObj.postInit(this, this.ui, this.document);
         if(gameObj.mesh)
             this.scene.add(gameObj.mesh);
-        this.gameObjects.push(gameObj);
+        
+        if(under)
+            this.unshiftGameObjects.push(gameObj);
+        else
+            this.gameObjects.push(gameObj);
     }
     removeGameObject(gameObj) { this.removeGameObjects.push(gameObj); }
     removeMesh(mesh)
@@ -70,15 +94,6 @@ export class handler
         if(!mesh)
             return;
         this.scene.remove(mesh);
-        if(mesh.geometry)
-            mesh.geometry.dispose();
-        if(mesh.material)
-        {
-            if(Array.isArray(mesh.material))
-                mesh.material.forEach(m => m.dispose());
-            else
-                mesh.material.dispose();
-        }
     }
     tick(dt)
     {
@@ -93,6 +108,12 @@ export class handler
         }
         this.gameObjects = this.gameObjects.filter(e => !this.removeGameObjects.includes(e));
         this.removeGameObjects = [];
+
+        for(const ugo of this.unshiftGameObjects)
+        {
+            this.gameObjects.unshift(ugo);
+        }
+        this.unshiftGameObjects = [];
     }
 }
 
@@ -183,22 +204,88 @@ export class paddle extends gameObject
 export class scoreKeeper extends gameObject
 {
     score = 0;
-    constructor()
+    camera = null;
+    constructor(camera)
     {
         super();
         scoreObj = this;
+
+        this.camera = camera;
     }
-    addScore(num){
+    addScore(num, pos){
         this.score += num;
+        this.handler.addGameObject(new scoreParticle(this.camera, pos, num), true);
     }
-    subtractScore(num){
+    subtractScore(num, pos){
         this.score = Math.max(0, this.score - num);
+        //this.handler.addGameObject(new scoreParticle(this.camera, pos, num), true);
     }
     tick(dt)
     {
         this.ui.fillStyle = "white";
         this.ui.font = "48px serif";
         this.ui.fillText(this.score, 10, 50);
+    }
+}
+
+export class scoreParticle extends gameObject
+{
+    amount = 1;
+    fallTime = 0.5;
+    stayTime = 0.5;
+    fadeTime = 0.5;
+    maxOffset = 0.5;
+    camera = null;
+    timer = 0;
+    vel = new THREE.Vector3();
+    target = new THREE.Vector3();
+    stopped = false;
+    constructor(camera, startPos = new THREE.Vector3(), amount = null, fallTime = null, fadeTime = null)
+    {
+        super(null, startPos);
+        if(!!amount) this.amount = amount;
+        if(!!fallTime) this.fallTime = fallTime;
+        if(!!fadeTime) this.fadeTime = fadeTime;
+
+        this.camera = camera;
+
+        this.target = new THREE.Vector3(this.maxOffset * (Math.random() * 2 - 1), this.maxOffset * (Math.random() * 2 - 1));
+        const pos = this.getPos();
+        this.vel = new THREE.Vector3(
+            (this.target.x - pos.x) / this.fallTime,
+            (4.9 * this.fallTime) + ((this.target.y - pos.y) / this.fallTime)
+        );
+    }
+    tick(dt)
+    {
+        this.timer += dt;
+        if(this.timer >= this.fallTime)
+        {
+            if(!this.stopped)
+            {
+                this.setPos(this.target);
+                this.stopped = true;
+            }
+
+            if(this.timer >= this.fallTime + this.stayTime + this.fadeTime)
+                this.handler.removeGameObject(this);
+            else
+            {
+                const opacity = Math.min(1, 1.0 - (this.timer - this.fallTime - this.stayTime) / this.fadeTime);
+                this.setPos(this.target.clone().multiplyScalar(Math.pow(opacity, 2)));
+            }
+        }
+        else //go towards target
+        {
+            this.vel.y -= 9.8 * dt; //gravity
+            this.addPos(this.vel.clone().multiplyScalar(dt));
+        }
+
+        const screenPos = worldToScreen(this.getPos(), this.camera, this.ui.canvas.width, this.ui.canvas.height);
+        this.ui.fillStyle = "yellow";
+        this.ui.beginPath();
+	    this.ui.arc(screenPos.x, screenPos.y, 2.5, 0, Math.PI * 2);
+	    this.ui.fill();
     }
 }
 
@@ -238,7 +325,8 @@ export class ball extends gameObject
     }
     tick(dt)
     {
-        const dist = this.getPos().length();
+        const pos = this.getPos();
+        const dist = pos.length();
 
         //if ball is within hitting distance and alligned with paddle's angle, deflect
         if(!this.shrinking)
@@ -252,7 +340,7 @@ export class ball extends gameObject
                 {
                     this.deflected = true;
                     this.speed = -this.speed;
-                    scoreObj.addScore(1);
+                    scoreObj.addScore(1, this.getPos().normalize().multiplyScalar((pos.length() - this.radius)));
                 }
             }
             else if(dist < Math.abs(minDist)) //ensure closeToCenter flag is toggled even if frames are skipped or paddleObj is missing
@@ -274,7 +362,7 @@ export class ball extends gameObject
                     this.mesh.scale.setScalar(currScale - dt * this.centerSpeed / this.radius / 2);
                 else{
                     this.handler.removeGameObject(this);
-                    scoreObj.subtractScore(this.damage);
+                    scoreObj.subtractScore(this.damage, pos);
                 }
 
                 //set pos touching edge of ball to origin with new scale

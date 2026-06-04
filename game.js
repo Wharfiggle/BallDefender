@@ -46,7 +46,7 @@ scene.add(pointLightBack);
 //game objects
 const handler = new GameObject.handler(scene, ui, document);
 handler.addGameObject(new GameObject.paddle());
-handler.addGameObject(new GameObject.scoreKeeper());
+handler.addGameObject(new GameObject.scoreKeeper(camera));
 
 
 //mouse input
