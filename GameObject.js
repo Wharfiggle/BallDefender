@@ -117,13 +117,15 @@ export class handler
     }
 }
 
-export class gameObject
+export class gameObject extends EventTarget
 {
     handler = null;
     addedDepth = 0;
     pos = new THREE.Vector3();
     constructor(mesh = null, startPos = null, addedDepth = 0)
     {
+        super();
+
         if(mesh)
             this.mesh = mesh.clone();
 
@@ -212,14 +214,13 @@ export class scoreKeeper extends gameObject
 
         this.camera = camera;
     }
-    addScore(num, pos){
-        this.score += num;
-        this.handler.addGameObject(new scoreParticle(this.camera, pos, num), true);
+    addScore(num, pos)
+    {
+        const particle = new scoreParticle(this.camera, pos, num);
+        this.handler.addGameObject(particle, true);
+        particle.addEventListener("particleDeath", () => { this.score += num; }, { once: true });
     }
-    subtractScore(num, pos){
-        this.score = Math.max(0, this.score - num);
-        //this.handler.addGameObject(new scoreParticle(this.camera, pos, num), true);
-    }
+    subtractScore(num, pos) { this.score = Math.max(0, this.score - num); }
     tick(dt)
     {
         this.ui.fillStyle = "white";
@@ -231,9 +232,9 @@ export class scoreKeeper extends gameObject
 export class scoreParticle extends gameObject
 {
     amount = 1;
-    fallTime = 0.5;
-    stayTime = 0.5;
-    fadeTime = 0.5;
+    fallTime = 1.0;
+    stayTime = 0;
+    fadeTime = 0;
     maxOffset = 0.5;
     camera = null;
     timer = 0;
@@ -249,7 +250,7 @@ export class scoreParticle extends gameObject
 
         this.camera = camera;
 
-        this.target = new THREE.Vector3(this.maxOffset * (Math.random() * 2 - 1), this.maxOffset * (Math.random() * 2 - 1));
+        //this.target = new THREE.Vector3(this.maxOffset * (Math.random() * 2 - 1), this.maxOffset * (Math.random() * 2 - 1));
         const pos = this.getPos();
         this.vel = new THREE.Vector3(
             (this.target.x - pos.x) / this.fallTime,
@@ -267,8 +268,12 @@ export class scoreParticle extends gameObject
                 this.stopped = true;
             }
 
+            //finished, remove self and dispatch event
             if(this.timer >= this.fallTime + this.stayTime + this.fadeTime)
+            {
                 this.handler.removeGameObject(this);
+                this.dispatchEvent(new CustomEvent("particleDeath"));
+            }
             else
             {
                 const opacity = Math.min(1, 1.0 - (this.timer - this.fallTime - this.stayTime) / this.fadeTime);
@@ -297,11 +302,12 @@ export class ball extends gameObject
     radius = null;
     closeToCenter = false;
     deflected = false;
+    deflectShrinkSpeed = 10;
     shrinking = false;
     deflectThreshold = 0.85;
     centerLerp = 0;
     centerSpeed = 5;
-    cullDistance = null;
+    //cullDistance = null;
     constructor(camera, mesh = null, addedDepth = 0)
     {
         super(!mesh ? meshes.ball : mesh, new THREE.Vector3(), addedDepth);
@@ -319,7 +325,7 @@ export class ball extends gameObject
         camera.getViewSize(camera.position.z - this.addedDepth, viewSize); //populates viewSize with width and height of camera's view z units away
         const spawnOffset = this.radius * 3;
         const spawnPoint = getRandomPointOnRectangle(viewSize.width + spawnOffset, viewSize.height + spawnOffset);
-        this.cullDistance = viewSize.length();
+        //this.cullDistance = viewSize.length();
 
         this.setPos(new THREE.Vector3(spawnPoint.x, spawnPoint.y, 0));
     }
@@ -328,46 +334,54 @@ export class ball extends gameObject
         const pos = this.getPos();
         const dist = pos.length();
 
-        //if ball is within hitting distance and alligned with paddle's angle, deflect
-        if(!this.shrinking)
+        //shrinking logic for deflected and when hit the center
+        if(this.shrinking)
         {
-            const minDist = paddleObj?.radius + paddleObj?.width - this.radius;
-            const maxDist = paddleObj?.radius + paddleObj?.width + this.radius;
-            if(!this.deflected && dist >= minDist && dist <= maxDist)
+            const shrinkSpeed = this.deflected ? this.deflectShrinkSpeed : (this.centerSpeed / this.radius / 2);
+            const newScale = this.mesh.scale.x - dt * shrinkSpeed;
+
+            //shrink to minimum size, then remove self
+            if(newScale > (this.deflected ? 0.1 : 0))
+                this.mesh.scale.setScalar(newScale);
+            else
             {
-                this.closeToCenter = true;
-                if(!!paddleObj && this.getPos().normalize().dot(paddleObj.getPos().normalize()) >= this.deflectThreshold)
-                {
-                    this.deflected = true;
-                    this.speed = -this.speed;
-                    scoreObj.addScore(1, this.getPos().normalize().multiplyScalar((pos.length() - this.radius)));
-                }
+                this.handler.removeGameObject(this);
+                if(this.deflected)
+                    scoreObj.addScore(1, pos);
+                else
+                    scoreObj.subtractScore(this.damage, pos);
             }
-            else if(dist < Math.abs(minDist)) //ensure closeToCenter flag is toggled even if frames are skipped or paddleObj is missing
-                this.closeToCenter = true;
+
+            //set pos touching edge of ball to origin with new scale
+            if(!this.deflected)
+                this.setPos(this.getPos().normalize().multiplyScalar(this.radius * this.mesh.scale.x));
+
+            return;
         }
+
+        //if ball is within hitting distance and alligned with paddle's angle, deflect
+        const minDist = paddleObj?.radius + paddleObj?.width - this.radius;
+        const maxDist = paddleObj?.radius + paddleObj?.width + this.radius;
+        if(!this.deflected && dist >= minDist && dist <= maxDist)
+        {
+            this.closeToCenter = true;
+            if(!!paddleObj && this.getPos().normalize().dot(paddleObj.getPos().normalize()) >= this.deflectThreshold)
+            {
+                this.deflected = true;
+                this.shrinking = true;
+                //this.speed = -this.speed;
+                //scoreObj.addScore(1, this.getPos().normalize().multiplyScalar((pos.length() - this.radius)));
+            }
+        }
+        else if(dist < Math.abs(minDist)) //ensure closeToCenter flag is toggled even if frames are skipped or paddleObj is missing
+            this.closeToCenter = true;
 
         //if ball wasn't deflected in time, transition to slow linear movement towards center
         if(this.closeToCenter && !this.deflected)
         {
             //if ball would touch center, set position at edge of center and start shrinking
-            if(this.shrinking || dist < this.speed * dt + this.radius)
-            {
+            if(dist < this.speed * dt + this.radius)
                 this.shrinking = true;
-
-                const currScale = this.mesh.scale.x;
-
-                //slowly shrink until scale would be 0, then remove self
-                if(currScale > dt)
-                    this.mesh.scale.setScalar(currScale - dt * this.centerSpeed / this.radius / 2);
-                else{
-                    this.handler.removeGameObject(this);
-                    scoreObj.subtractScore(this.damage, pos);
-                }
-
-                //set pos touching edge of ball to origin with new scale
-                this.setPos(this.getPos().normalize().multiplyScalar(this.radius * this.mesh.scale.x));
-            }
             else //lerp into linear movement
             {
                 if(this.centerLerp < 1)
@@ -380,8 +394,8 @@ export class ball extends gameObject
             this.addPos(this.getMoveVector(dt, this.speed));
 
             //cull once far enough away if deflected
-            if(this.deflected && dist > this.cullDistance)
-                this.handler.removeGameObject(this);
+            /*if(this.deflected && dist > this.cullDistance)
+                this.handler.removeGameObject(this);*/
         }
     }
     getMoveVector(dt, speed) { return this.getCenterMoveVector(dt, speed); }

@@ -79,7 +79,7 @@ function dispatchMouseEvent(event)
 
 
 //tick
-const ballSpawnTime = 0.2;
+const ballSpawnTime = 0.5;
 let ballSpawnTimer = ballSpawnTime;
 
 let lastTime = 0;
