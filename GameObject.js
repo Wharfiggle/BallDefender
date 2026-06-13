@@ -196,7 +196,8 @@ export class paddle extends gameObject
     tick(dt)
     {
         //draw white dot in center
-        this.ui.fillStyle = "white";
+        const scoreColor = scoreObj.colorFlash.color;
+        this.ui.fillStyle = `rgb(${scoreColor.x}, ${scoreColor.y}, ${scoreColor.z})`;
         this.ui.beginPath();
 	    this.ui.arc(this.ui.canvas.width / 2, this.ui.canvas.height / 2, 5, 0, Math.PI * 2);
 	    this.ui.fill();
@@ -207,23 +208,59 @@ export class scoreKeeper extends gameObject
 {
     score = 0;
     camera = null;
+    colorFlash = {
+        defaultColor: new THREE.Vector3(255, 255, 255),
+        color: null,
+        startColor: null,
+        targetColor: null,
+        lerp: 1,
+        speed: 10
+    }
     constructor(camera)
     {
         super();
         scoreObj = this;
 
         this.camera = camera;
+
+        this.colorFlash.color = this.colorFlash.defaultColor.clone();
+        this.colorFlash.startColor = this.colorFlash.defaultColor.clone();
+        this.colorFlash.targetColor = this.colorFlash.defaultColor.clone();
+    }
+    flashScoreColor(vec3)
+    {
+        this.colorFlash.targetColor = vec3;
+        this.colorFlash.startColor = this.colorFlash.color.clone();
+        this.colorFlash.lerp = 0;
     }
     addScore(num, pos)
     {
         const particle = new scoreParticle(this.camera, pos, num);
         this.handler.addGameObject(particle, true);
-        particle.addEventListener("particleDeath", () => { this.score += num; }, { once: true });
+        particle.addEventListener("particleDeath", () => { 
+            this.score += num;
+            this.flashScoreColor(new THREE.Vector3(255, 255, 0));
+        }, { once: true });
     }
-    subtractScore(num, pos) { this.score = Math.max(0, this.score - num); }
+    subtractScore(num, pos)
+    {
+        this.score = Math.max(0, this.score - num);
+        this.flashScoreColor(new THREE.Vector3(255, 0, 0));
+    }
     tick(dt)
     {
-        this.ui.fillStyle = "white";
+        const cf = this.colorFlash;
+        if(cf.lerp < 1)
+        {
+            cf.lerp = Math.min(1, cf.lerp + dt * cf.speed);
+            cf.color = lerp(cf.startColor, cf.targetColor, cf.lerp, 1);
+
+            //return to default color after reaching target color
+            if(cf.lerp == 1 && cf.startColor != cf.defaultColor)
+                this.flashScoreColor(cf.defaultColor);
+        }
+
+        this.ui.fillStyle = `rgb(${cf.color.x}, ${cf.color.y}, ${cf.color.z})`;
         this.ui.font = "48px serif";
         this.ui.fillText(this.score, 10, 50);
     }
