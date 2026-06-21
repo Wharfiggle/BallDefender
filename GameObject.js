@@ -226,6 +226,10 @@ export class scoreKeeper extends gameObject
         this.colorFlash.color = this.colorFlash.defaultColor.clone();
         this.colorFlash.startColor = this.colorFlash.defaultColor.clone();
         this.colorFlash.targetColor = this.colorFlash.defaultColor.clone();
+
+        //load score from local storage
+        const storedScore = Number(localStorage.getItem("score"));
+        this.score = !!storedScore ? storedScore : 0;
     }
     flashScoreColor(vec3)
     {
@@ -240,12 +244,14 @@ export class scoreKeeper extends gameObject
         particle.addEventListener("particleDeath", () => { 
             this.score += num;
             this.flashScoreColor(new THREE.Vector3(255, 255, 0));
+            localStorage.setItem("score", this.score); //save new score in local storage
         }, { once: true });
     }
     subtractScore(num, pos)
     {
         this.score = Math.max(0, this.score - num);
-        this.flashScoreColor(new THREE.Vector3(255, 0, 0));
+        this.flashScoreColor(new THREE.Vector3(0, 0, 0));
+        localStorage.setItem("score", this.score); //save new score in local storage
     }
     tick(dt)
     {
