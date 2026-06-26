@@ -27,6 +27,7 @@ const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
 camera.position.z = 20;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
+camera.updateMatrixWorld();
 
 //set up lighting
 const hemiLight = new THREE.HemisphereLight(0x808080, 0x404040);
@@ -45,7 +46,7 @@ scene.add(pointLightBack);
 
 //game objects
 const handler = new GameObject.handler(scene, ui, document);
-handler.addGameObject(new GameObject.paddle());
+handler.addGameObject(new GameObject.paddle(camera));
 handler.addGameObject(new GameObject.scoreKeeper(camera));
 
 
@@ -126,18 +127,19 @@ function tick(t = 0)
     
     handler.tick(dt);
 
-    //adapt to resized window
-    if(window.innerWidth != w || window.innerHeight != h)
-    {
-        w = window.innerWidth;
-        h = window.innerHeight;
-        renderer.setSize(w, h);
-        canvas.width = w;
-        canvas.height = h;
-        camera.aspect = w / h;
-        camera.updateProjectionMatrix();
-    }
-
     renderer.render(scene, camera);
 }
 tick();
+
+//adapt to resized window
+function handleWindowResize()
+{
+    w = window.innerWidth;
+    h = window.innerHeight;
+    renderer.setSize(w, h);
+    canvas.width = w;
+    canvas.height = h;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+}
+window.addEventListener("resize", handleWindowResize, false);

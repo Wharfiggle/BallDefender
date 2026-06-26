@@ -163,11 +163,15 @@ export class paddle extends gameObject
     radius = 2.5;
     width = null;
     pointLight = null;
-    constructor()
+    camera = null;
+    screenRadius = 0;
+    constructor(camera)
     {
         super(meshes.paddle);
         this.setPos(new THREE.Vector3(0, this.radius, 0));
         this.width = this.mesh.geometry.parameters.height;
+        this.camera = camera;
+
         paddleObj = this;
     }
     postInit(handler, ui, document)
@@ -176,6 +180,9 @@ export class paddle extends gameObject
         this.pointLight.castShadow = true;
         this.pointLight.position.copy(this.pos);
         handler.scene.add(this.pointLight);
+
+        const screenPos = worldToScreen(this.getPos(), this.camera, ui.canvas.width, ui.canvas.height);
+        this.screenRadius = screenPos.sub(new THREE.Vector2(ui.canvas.width / 2, ui.canvas.height / 2)).length();
 
         //respond to mouseEvent fired from game.js
         document.addEventListener("mouseEvent", event => {
@@ -187,12 +194,6 @@ export class paddle extends gameObject
             this.mesh.rotation.z = ang + Math.PI / 2;
         });
     }
-    /*setPos(vector3)
-    {
-        super.setPos(vector3);
-        if(!!this.pointLight)
-            this.pointLight.position.copy(this.pos);
-    }*/
     tick(dt)
     {
         //draw white dot in center
@@ -201,6 +202,12 @@ export class paddle extends gameObject
         this.ui.beginPath();
 	    this.ui.arc(this.ui.canvas.width / 2, this.ui.canvas.height / 2, 5, 0, Math.PI * 2);
 	    this.ui.fill();
+
+        //draw white trail following paddle
+        this.ui.strokeStyle = "white";
+        this.ui.beginPath();
+        this.ui.arc(this.ui.canvas.width / 2, this.ui.canvas.height / 2, this.screenRadius, 0, Math.PI * 2);
+        this.ui.stroke();
     }
 }
 
