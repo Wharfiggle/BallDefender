@@ -161,10 +161,16 @@ export class gameObject extends EventTarget
 export class paddle extends gameObject
 {
     radius = 2.5;
+    angle = 0;
+    lastAngle = 0;
     width = null;
     pointLight = null;
     camera = null;
     screenRadius = 0;
+    trail = {
+        colorStep: 10,
+        maxGap: 5
+    }
     constructor(camera)
     {
         super(meshes.paddle);
@@ -187,11 +193,11 @@ export class paddle extends gameObject
         //respond to mouseEvent fired from game.js
         document.addEventListener("mouseEvent", event => {
             const e = event.detail;
-            const ang = Math.atan2(e.coord.y, e.coord.x);
-            const dir = new THREE.Vector3(Math.cos(ang), Math.sin(ang));
+            this.angle = Math.atan2(e.coord.y, e.coord.x);
+            const dir = new THREE.Vector3(Math.cos(this.angle), Math.sin(this.angle));
             this.setPos(dir.clone().multiplyScalar(this.radius));
             this.pointLight.position.copy(dir.clone().multiplyScalar(this.radius + this.width));
-            this.mesh.rotation.z = ang + Math.PI / 2;
+            this.mesh.rotation.z = this.angle + Math.PI / 2;
         });
     }
     tick(dt)
@@ -203,11 +209,19 @@ export class paddle extends gameObject
 	    this.ui.arc(this.ui.canvas.width / 2, this.ui.canvas.height / 2, 5, 0, Math.PI * 2);
 	    this.ui.fill();
 
+        //figure out if trail goes counter clockwise
+        const angDiff = (this.angle - this.lastAngle) % (2 * Math.PI);
+        const ccwDiff = angDiff < 0 ? angDiff + (2 * Math.PI) : angDiff;
+        const cwDiff = (2 * Math.PI - ccwDiff) % (2 * Math.PI);
+        const ccw = ccwDiff < cwDiff;
+
         //draw white trail following paddle
         this.ui.strokeStyle = "white";
         this.ui.beginPath();
-        this.ui.arc(this.ui.canvas.width / 2, this.ui.canvas.height / 2, this.screenRadius, 0, Math.PI * 2);
+        this.ui.arc(this.ui.canvas.width / 2, this.ui.canvas.height / 2, this.screenRadius - 20, -this.lastAngle, -this.angle, ccw);
         this.ui.stroke();
+
+        this.lastAngle = this.angle;
     }
 }
 
@@ -221,7 +235,8 @@ export class scoreKeeper extends gameObject
         startColor: null,
         targetColor: null,
         lerp: 1,
-        speed: 10
+        defaultSpeed: 5,
+        speed: null,
     }
     constructor(camera)
     {
@@ -233,16 +248,24 @@ export class scoreKeeper extends gameObject
         this.colorFlash.color = this.colorFlash.defaultColor.clone();
         this.colorFlash.startColor = this.colorFlash.defaultColor.clone();
         this.colorFlash.targetColor = this.colorFlash.defaultColor.clone();
+        this.colorFlash.speed = this.colorFlash.defaultSpeed;
 
         //load score from local storage
         const storedScore = Number(localStorage.getItem("score"));
         this.score = !!storedScore ? storedScore : 0;
     }
-    flashScoreColor(vec3)
+    flashScoreColor(vec3, fadeIn = false, speed = null)
     {
-        this.colorFlash.targetColor = vec3;
-        this.colorFlash.startColor = this.colorFlash.color.clone();
-        this.colorFlash.lerp = 0;
+        const cf = this.colorFlash;
+
+        //cf.targetColor = vec3;
+        //cf.startColor = this.colorFlash.color.clone();
+        cf.targetColor = vec3;
+        cf.startColor = fadeIn ? cf.color.clone() : vec3;
+
+        cf.lerp = 0;
+        cf.color = cf.startColor;
+        cf.speed = !!speed ? speed : cf.defaultSpeed;
     }
     addScore(num, pos)
     {
@@ -257,7 +280,7 @@ export class scoreKeeper extends gameObject
     subtractScore(num, pos)
     {
         this.score = Math.max(0, this.score - num);
-        this.flashScoreColor(new THREE.Vector3(0, 0, 0));
+        this.flashScoreColor(new THREE.Vector3(20, 20, 20), false, 10);
         localStorage.setItem("score", this.score); //save new score in local storage
     }
     tick(dt)
@@ -266,11 +289,12 @@ export class scoreKeeper extends gameObject
         if(cf.lerp < 1)
         {
             cf.lerp = Math.min(1, cf.lerp + dt * cf.speed);
-            cf.color = lerp(cf.startColor, cf.targetColor, cf.lerp, 1);
+            if(cf.startColor != cf.targetColor)
+                cf.color = lerp(cf.startColor, cf.targetColor, cf.lerp, 1);
 
-            //return to default color after reaching target color
-            if(cf.lerp == 1 && cf.startColor != cf.defaultColor)
-                this.flashScoreColor(cf.defaultColor);
+            //fade back to default color after reaching target color
+            if(cf.lerp == 1 && cf.targetColor != cf.defaultColor)
+                this.flashScoreColor(cf.defaultColor, true);
         }
 
         this.ui.fillStyle = `rgb(${cf.color.x}, ${cf.color.y}, ${cf.color.z})`;
