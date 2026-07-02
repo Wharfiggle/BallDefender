@@ -162,14 +162,17 @@ export class paddle extends gameObject
 {
     radius = 2.5;
     angle = 0;
-    lastAngle = 0;
     width = null;
     pointLight = null;
     camera = null;
     screenRadius = 0;
     trail = {
-        colorStep: 10,
-        maxGap: 5
+        lastAngle: 0,
+        minSteps: 0,
+        maxSteps: 20,
+        maxLength: Math.PI,
+        length: 0,
+        lengthReduceSpeed: 1
     }
     constructor(camera)
     {
@@ -209,19 +212,37 @@ export class paddle extends gameObject
 	    this.ui.arc(this.ui.canvas.width / 2, this.ui.canvas.height / 2, 5, 0, Math.PI * 2);
 	    this.ui.fill();
 
-        //figure out if trail goes counter clockwise
-        const angDiff = (this.angle - this.lastAngle) % (2 * Math.PI);
+        //draw white trail following paddle
+        const tr = this.trail;
+
+        //shrink trail length over time
+        tr.length += (tr.length > 0 ? -1 : 1) * tr.lengthReduceSpeed * Math.abs(tr.length) * dt;
+
+        //calculate angle difference and apply to length
+        const angDiff = (tr.lastAngle - this.angle) % (2 * Math.PI);
         const ccwDiff = angDiff < 0 ? angDiff + (2 * Math.PI) : angDiff;
         const cwDiff = (2 * Math.PI - ccwDiff) % (2 * Math.PI);
         const ccw = ccwDiff < cwDiff;
+        tr.length += (ccw ? ccwDiff : -cwDiff);
+        tr.length = Math.min(tr.maxLength, Math.max(-tr.maxLength, tr.length)); //clamp
+        
+        let steps = Math.abs(tr.length) / (tr.maxLength / tr.maxSteps);
+        steps = Math.max(tr.minSteps, steps); //make sure steps is not below minSteps
 
-        //draw white trail following paddle
         this.ui.strokeStyle = "white";
-        this.ui.beginPath();
-        this.ui.arc(this.ui.canvas.width / 2, this.ui.canvas.height / 2, this.screenRadius - 20, -this.lastAngle, -this.angle, ccw);
-        this.ui.stroke();
+        this.ui.save();
+        for(let i = 0; i < steps; i++)
+        {
+            const start = this.angle + i * (tr.length / steps);
+            const end = this.angle + (i + 1) * (tr.length / steps);
+            this.ui.globalAlpha = 1.0 - ((i + 1) * (1.0 / steps));
+            this.ui.beginPath();
+            this.ui.arc(this.ui.canvas.width / 2, this.ui.canvas.height / 2, this.screenRadius, -start, -end, tr.length > 0);
+            this.ui.stroke();
+        }
+        this.ui.restore();
 
-        this.lastAngle = this.angle;
+        tr.lastAngle = this.angle;
     }
 }
 
