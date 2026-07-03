@@ -168,11 +168,12 @@ export class paddle extends gameObject
     screenRadius = 0;
     trail = {
         lastAngle: 0,
-        minSteps: 0,
+        minSteps: 20,
         maxSteps: 20,
         maxLength: Math.PI,
         length: 0,
-        lengthReduceSpeed: 1
+        lengthReduceSpeed: 1,
+        trailWidth: 5
     }
     constructor(camera)
     {
@@ -230,17 +231,20 @@ export class paddle extends gameObject
         steps = Math.max(tr.minSteps, steps); //make sure steps is not below minSteps
 
         this.ui.strokeStyle = "white";
-        this.ui.save();
-        for(let i = 0; i < steps; i++)
+        for(let j = 0; j < tr.trailWidth; j++)
         {
-            const start = this.angle + i * (tr.length / steps);
-            const end = this.angle + (i + 1) * (tr.length / steps);
-            this.ui.globalAlpha = 1.0 - ((i + 1) * (1.0 / steps));
-            this.ui.beginPath();
-            this.ui.arc(this.ui.canvas.width / 2, this.ui.canvas.height / 2, this.screenRadius, -start, -end, tr.length > 0);
-            this.ui.stroke();
+            this.ui.save();
+            for(let i = 0; i < steps; i++)
+            {
+                const start = this.angle + i * (tr.length / steps);
+                const end = this.angle + (i + 1) * (tr.length / steps);
+                this.ui.globalAlpha = 1.0 - ((i + 1) * (1.0 / steps));
+                this.ui.beginPath();
+                this.ui.arc(this.ui.canvas.width / 2, this.ui.canvas.height / 2, this.screenRadius + j, -start, -end, tr.length > 0);
+                this.ui.stroke();
+            }
+            this.ui.restore();
         }
-        this.ui.restore();
 
         tr.lastAngle = this.angle;
     }
