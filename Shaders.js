@@ -34,7 +34,7 @@ export const meshes = {
 const paddleTrailMat = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     transparent: true,
-    opacity: 0.02
+    opacity: 0.05
 });
 
 export const shaders = {

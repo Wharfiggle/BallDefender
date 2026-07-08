@@ -143,9 +143,9 @@ export class paddle extends gameObject
         ccwMeshes: null,
         lastAngle: 0,
         length: 0, //radians
-        maxLength: Math.PI / 4,
+        maxLength: Math.PI / 2,
         gap: Math.PI / 100, //radians
-        lengthReduceSpeed: 5,
+        lengthReduceSpeed: 8,
     };
     constructor(camera)
     {
@@ -159,7 +159,7 @@ export class paddle extends gameObject
         this.camera = camera;
 
         //subtle white light from paddle
-        this.pointLight = new THREE.PointLight(0xffffff, 5, 15);
+        this.pointLight = new THREE.PointLight(0xffffff, 15, 15);
         this.pointLight.position.set(0, this.radius + this.width, 0);
         this.pointLight.castShadow = true;
         this.mesh.add(this.pointLight);
@@ -186,6 +186,8 @@ export class paddle extends gameObject
             for(let i = 0; i < maxMeshes; i++)
             {
                 const a = tr.gap * (i + 1) * trailDir + Math.PI / 2;
+                const scale = (maxMeshes - i) / maxMeshes;
+                dummy.scale.setScalar(scale);
                 dummy.position.set(Math.cos(a) * this.radius, Math.sin(a) * this.radius, 0);
                 dummy.rotation.z = a - Math.PI / 2;
                 dummy.updateMatrix();
@@ -402,6 +404,7 @@ export class ball extends gameObject
     deflectThreshold = 0.85;
     centerLerp = 0;
     centerSpeed = 5;
+    //pointLight = null;
     //cullDistance = null;
     constructor(camera, mesh = null, addedDepth = 0)
     {
@@ -414,6 +417,9 @@ export class ball extends gameObject
 
         console.assert(!!camera);
         console.assert(!!this.radius);
+
+        //this.pointLight = new THREE.PointLight(this.mesh.material.color, 15, this.radius + 5);
+        //this.mesh.add(this.pointLight);
 
         //get spawn point on edge of screen at the origin
         let viewSize = new THREE.Vector2();
