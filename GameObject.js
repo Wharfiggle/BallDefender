@@ -1,34 +1,6 @@
 import * as THREE from "three";
 import { getRandomPointOnRectangle } from "./RandomPointOnRectangle.js";
-
-//set up meshes
-const standardBallMesh = new THREE.IcosahedronGeometry(0.5, 2); 
-const meshes = {
-    ball: new THREE.Mesh(
-        standardBallMesh,
-        new THREE.MeshStandardMaterial({ color: "purple"})
-    ),
-    bob: new THREE.Mesh(
-        standardBallMesh,
-        new THREE.MeshStandardMaterial({ color: "green"})
-    ),
-    orbiter: new THREE.Mesh(
-        standardBallMesh,
-        new THREE.MeshStandardMaterial({ color: "navy"})
-    ),
-    bertha: new THREE.Mesh(
-        new THREE.IcosahedronGeometry(1.5, 6),
-        new THREE.MeshStandardMaterial({ color: "red"})
-    ),
-    /*point: new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.1, 1),
-        new THREE.MeshStandardMaterial({ color: "yellow", emissive: true, emissiveIntensity: 1 })
-    ),*/
-    paddle: new THREE.Mesh(
-        new THREE.BoxGeometry(2.0, 0.2, 2.8),
-        new THREE.MeshStandardMaterial({ color: "white" })
-    )
-}
+import { shaders, meshes } from "./Shaders.js";
 
 let paddleObj = null;
 let scoreObj = null;
@@ -160,48 +132,76 @@ export class gameObject extends EventTarget
 
 export class paddle extends gameObject
 {
+    paddleMesh = meshes.paddle.clone();
     radius = 2.5;
     angle = 0;
     width = null;
     pointLight = null;
     camera = null;
-    screenRadius = 0;
     trail = {
+        cwMeshes: null,
+        ccwMeshes: null,
         lastAngle: 0,
-        minSteps: 20,
-        maxSteps: 20,
-        maxLength: Math.PI,
-        length: 0,
-        lengthReduceSpeed: 1,
-        trailWidth: 5
-    }
+        length: 0, //radians
+        maxLength: Math.PI / 4,
+        gap: Math.PI / 100, //radians
+        lengthReduceSpeed: 5,
+    };
     constructor(camera)
     {
-        super(meshes.paddle);
-        this.setPos(new THREE.Vector3(0, this.radius, 0));
-        this.width = this.mesh.geometry.parameters.height;
+        super(new THREE.Object3D());
+
+        //our mesh acts as the anchor point and the paddleMesh rotates with it but at radius
+        this.paddleMesh.position.set(0, this.radius, 0);
+        this.mesh.add(this.paddleMesh);
+
+        this.width = this.paddleMesh.geometry.parameters.height;
         this.camera = camera;
+
+        //subtle white light from paddle
+        this.pointLight = new THREE.PointLight(0xffffff, 5, 15);
+        this.pointLight.position.set(0, this.radius + this.width, 0);
+        this.pointLight.castShadow = true;
+        this.mesh.add(this.pointLight);
 
         paddleObj = this;
     }
     postInit(handler, ui, document)
     {
-        this.pointLight = new THREE.PointLight(0xffffff, 5, 15);
-        this.pointLight.castShadow = true;
-        this.pointLight.position.copy(this.pos);
-        handler.scene.add(this.pointLight);
+        const tr = this.trail;
 
-        const screenPos = worldToScreen(this.getPos(), this.camera, ui.canvas.width, ui.canvas.height);
-        this.screenRadius = screenPos.sub(new THREE.Vector2(ui.canvas.width / 2, ui.canvas.height / 2)).length();
+        // set up instanced meshes
+        
+        const maxMeshes = Math.floor(this.trail.maxLength / this.trail.gap);
+        console.log(maxMeshes);
+        tr.ccwMeshes = new THREE.InstancedMesh(this.paddleMesh.geometry, shaders.paddleTrailMat, maxMeshes);
+        tr.cwMeshes = tr.ccwMeshes.clone();
 
-        //respond to mouseEvent fired from game.js
+        //set instanced mesh transforms
+        const dummy = new THREE.Object3D();
+        dummy.scale.setScalar(0.8);
+        const trailDir = tr.length < 0 ? -1 : 1;
+        for(let trailDir = -1; trailDir <= 1; trailDir += 2)
+        {
+            for(let i = 0; i < maxMeshes; i++)
+            {
+                const a = tr.gap * (i + 1) * trailDir + Math.PI / 2;
+                dummy.position.set(Math.cos(a) * this.radius, Math.sin(a) * this.radius, 0);
+                dummy.rotation.z = a - Math.PI / 2;
+                dummy.updateMatrix();
+                const meshes = trailDir == 1 ? tr.ccwMeshes : tr.cwMeshes;
+                meshes.setMatrixAt(i, dummy.matrix);
+            }
+        }
+
+        this.mesh.add(tr.ccwMeshes);
+        this.mesh.add(tr.cwMeshes);
+
+        //respond to mouseEvent fired from game.js and rotate with mouse direction
         document.addEventListener("mouseEvent", event => {
             const e = event.detail;
             this.angle = Math.atan2(e.coord.y, e.coord.x);
-            const dir = new THREE.Vector3(Math.cos(this.angle), Math.sin(this.angle));
-            this.setPos(dir.clone().multiplyScalar(this.radius));
-            this.pointLight.position.copy(dir.clone().multiplyScalar(this.radius + this.width));
-            this.mesh.rotation.z = this.angle + Math.PI / 2;
+            this.mesh.rotation.z = this.angle - Math.PI / 2;
         });
     }
     tick(dt)
@@ -213,37 +213,33 @@ export class paddle extends gameObject
 	    this.ui.arc(this.ui.canvas.width / 2, this.ui.canvas.height / 2, 5, 0, Math.PI * 2);
 	    this.ui.fill();
 
-        //draw white trail following paddle
+
+        // draw trail of instanced meshes following paddle based on prior rotations
+        
         const tr = this.trail;
 
         //shrink trail length over time
-        tr.length += (tr.length > 0 ? -1 : 1) * tr.lengthReduceSpeed * Math.abs(tr.length) * dt;
+        tr.length -= (tr.length > 0 ? 1 : -1) * tr.lengthReduceSpeed * Math.abs(tr.length) * dt;
 
-        //calculate angle difference and apply to length
+        //calculate angle difference from last frame and apply to trail length
         const angDiff = (tr.lastAngle - this.angle) % (2 * Math.PI);
-        const ccwDiff = angDiff < 0 ? angDiff + (2 * Math.PI) : angDiff;
-        const cwDiff = (2 * Math.PI - ccwDiff) % (2 * Math.PI);
-        const ccw = ccwDiff < cwDiff;
-        tr.length += (ccw ? ccwDiff : -cwDiff);
-        tr.length = Math.min(tr.maxLength, Math.max(-tr.maxLength, tr.length)); //clamp
-        
-        let steps = Math.abs(tr.length) / (tr.maxLength / tr.maxSteps);
-        steps = Math.max(tr.minSteps, steps); //make sure steps is not below minSteps
+        const ccwDiff = angDiff < 0 ? angDiff + (2 * Math.PI) : angDiff; //counter clockwise difference
+        const cwDiff = (2 * Math.PI - ccwDiff) % (2 * Math.PI); //clockwise difference
+        const ccw = ccwDiff < cwDiff; //went counterclockwise if ccwDiff is shorter than cwDiff and vice versa
+        tr.length += (ccw ? ccwDiff : -cwDiff); //counterclockwise movement is positive, clockwise movement is negative
+        tr.length = Math.min(tr.maxLength, Math.max(-tr.maxLength, tr.length)); //clamp length
 
-        this.ui.strokeStyle = "white";
-        for(let j = 0; j < tr.trailWidth; j++)
+        //derrive mesh count from trail length
+        const meshCount = Math.floor(Math.abs(tr.length) / tr.gap);
+        if(tr.length > 0)
         {
-            this.ui.save();
-            for(let i = 0; i < steps; i++)
-            {
-                const start = this.angle + i * (tr.length / steps);
-                const end = this.angle + (i + 1) * (tr.length / steps);
-                this.ui.globalAlpha = 1.0 - ((i + 1) * (1.0 / steps));
-                this.ui.beginPath();
-                this.ui.arc(this.ui.canvas.width / 2, this.ui.canvas.height / 2, this.screenRadius + j, -start, -end, tr.length > 0);
-                this.ui.stroke();
-            }
-            this.ui.restore();
+            tr.ccwMeshes.count = meshCount;
+            tr.cwMeshes.count = 0;
+        }
+        else
+        {
+            tr.ccwMeshes.count = 0;
+            tr.cwMeshes.count = meshCount;
         }
 
         tr.lastAngle = this.angle;
@@ -464,7 +460,8 @@ export class ball extends gameObject
         if(!this.deflected && dist >= minDist && dist <= maxDist)
         {
             this.closeToCenter = true;
-            if(!!paddleObj && this.getPos().normalize().dot(paddleObj.getPos().normalize()) >= this.deflectThreshold)
+            const paddleDir = new THREE.Vector3(Math.cos(paddleObj.angle), Math.sin(paddleObj.angle));
+            if(!!paddleObj && this.getPos().normalize().dot(paddleDir) >= this.deflectThreshold)
             {
                 this.deflected = true;
                 this.shrinking = true;
