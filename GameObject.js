@@ -32,10 +32,11 @@ export class handler
     gameObjects = [];
     removeGameObjects = [];
     unshiftGameObjects = [];
-    constructor(scene, ui, document)
+    constructor(scene, ui, ghostUi, document)
     {
         this.scene = scene;
         this.ui = ui;
+        this.ghostUi = ghostUi;
         this.document = document;
 
         //preload meshes and keep in memory to prevent lag spikes on spawns
@@ -50,6 +51,7 @@ export class handler
     {
         gameObj.handler = this;
         gameObj.ui = this.ui;
+        gameObj.ghostUi = this.ghostUi;
         gameObj.document = this.document;
         gameObj.postInit(this, this.ui, this.document);
         if(gameObj.mesh)
@@ -139,6 +141,7 @@ export class paddle extends gameObject
     width = null;
     pointLight = null;
     camera = null;
+    dotSizeMod = 1;
     trail = {
         cwMeshes: null,
         ccwMeshes: null,
@@ -209,11 +212,30 @@ export class paddle extends gameObject
     }
     tick(dt)
     {
-        //draw white dot in center
+        //modify dot size based on score's color flash
+        const cf = scoreObj.colorFlash;
+        if(cf.lerp < 1)
+        {
+            if(cf.targetColor == cf.addScoreColor) //growing
+                this.dotSizeMod = 1 + Math.sqrt(cf.lerp);
+            else if(cf.targetColor == cf.subtractScoreColor) //shrinking
+                this.dotSizeMod = 1 - cf.lerp * 0.5;
+            else if(cf.targetColor == cf.defaultColor) //back to normal
+            {
+                if(this.dotSizeMod > 1) //back to normal after growing
+                    this.dotSizeMod = 2 - Math.pow(cf.lerp, 2);
+                else //back to normal after shrinking
+                    this.dotSizeMod = cf.lerp * 0.5 + 0.5;
+            }
+        }
+        else
+            this.dotSizeMod = 1;
+
+        //draw dot in center
         const scoreColor = scoreObj.colorFlash.color;
         this.ui.fillStyle = `rgb(${scoreColor.x}, ${scoreColor.y}, ${scoreColor.z})`;
         this.ui.beginPath();
-	    this.ui.arc(this.ui.canvas.width / 2, this.ui.canvas.height / 2, 5, 0, Math.PI * 2);
+	    this.ui.arc(this.ui.canvas.width / 2, this.ui.canvas.height / 2, 5 * this.dotSizeMod, 0, Math.PI * 2);
 	    this.ui.fill();
 
 
@@ -255,12 +277,13 @@ export class scoreKeeper extends gameObject
     camera = null;
     colorFlash = {
         defaultColor: new THREE.Vector3(255, 255, 255),
+        addScoreColor: new THREE.Vector3(255, 255, 0),
+        subtractScoreColor: new THREE.Vector3(100, 100, 100),
         color: null,
         startColor: null,
         targetColor: null,
         lerp: 1,
-        defaultSpeed: 5,
-        speed: null,
+        speed: 5,
     }
     constructor(camera)
     {
@@ -272,13 +295,12 @@ export class scoreKeeper extends gameObject
         this.colorFlash.color = this.colorFlash.defaultColor.clone();
         this.colorFlash.startColor = this.colorFlash.defaultColor.clone();
         this.colorFlash.targetColor = this.colorFlash.defaultColor.clone();
-        this.colorFlash.speed = this.colorFlash.defaultSpeed;
 
         //load score from local storage
         const storedScore = Number(localStorage.getItem("score"));
         this.score = !!storedScore ? storedScore : 0;
     }
-    flashScoreColor(vec3, fadeIn = false, speed = null)
+    flashScoreColor(vec3, fadeIn = false, speed = 5)
     {
         const cf = this.colorFlash;
 
@@ -289,13 +311,14 @@ export class scoreKeeper extends gameObject
 
         cf.lerp = 0;
         cf.color = cf.startColor;
-        cf.speed = !!speed ? speed : cf.defaultSpeed;
+        cf.speed = speed;
     }
     async addScore(num, pos)
     {
         if(num <= 0)
             return;
         
+        //stagger multiple score particles for each point gained
         for(var i = 0; i < num; i++)
         {
             const particle = new scoreParticle(this.camera, pos, num);
@@ -303,7 +326,7 @@ export class scoreKeeper extends gameObject
             this.handler.addGameObject(particle, true);
             particle.addEventListener("particleDeath", () => { 
                 this.score += 1;
-                this.flashScoreColor(new THREE.Vector3(255, 255, 0));
+                this.flashScoreColor(this.colorFlash.addScoreColor, false, 5);
                 localStorage.setItem("score", this.score); //save new score in local storage
             }, { once: true });
         }
@@ -311,7 +334,7 @@ export class scoreKeeper extends gameObject
     subtractScore(num, pos)
     {
         this.score = Math.max(0, this.score - num);
-        this.flashScoreColor(new THREE.Vector3(50, 50, 50), false, 10);
+        this.flashScoreColor(this.colorFlash.subtractScoreColor, false, 10);
         localStorage.setItem("score", this.score); //save new score in local storage
     }
     tick(dt)
@@ -321,11 +344,11 @@ export class scoreKeeper extends gameObject
         {
             cf.lerp = Math.min(1, cf.lerp + dt * cf.speed);
             if(cf.startColor != cf.targetColor)
-                cf.color = lerp(cf.startColor, cf.targetColor, cf.lerp, 1);
+                cf.color = lerp(cf.startColor, cf.targetColor, cf.lerp);
 
             //fade back to default color after reaching target color
             if(cf.lerp == 1 && cf.targetColor != cf.defaultColor)
-                this.flashScoreColor(cf.defaultColor, true);
+                this.flashScoreColor(cf.defaultColor, true, cf.speed);
         }
 
         this.ui.fillStyle = `rgb(${cf.color.x}, ${cf.color.y}, ${cf.color.z})`;
@@ -346,6 +369,7 @@ export class scoreParticle extends gameObject
     vel = null;
     target = new THREE.Vector3();
     stopped = false;
+    gravity = 0;
     constructor(camera, startPos = new THREE.Vector3(), amount = null, fallTime = null, fadeTime = null)
     {
         super(null, startPos);
@@ -354,6 +378,9 @@ export class scoreParticle extends gameObject
         if(!!fadeTime) this.fadeTime = fadeTime;
 
         this.camera = camera;
+
+        const rang = Math.random() * Math.PI * 2;
+        this.gravity = new THREE.Vector3(Math.cos(rang) * 9.8, Math.sin(rang) * 9.8);
 
         //this.target = new THREE.Vector3(this.maxOffset * (Math.random() * 2 - 1), this.maxOffset * (Math.random() * 2 - 1));
     }
@@ -368,13 +395,13 @@ export class scoreParticle extends gameObject
             {
                 const pos = this.getPos();
                 this.vel = new THREE.Vector3(
-                    (this.target.x - pos.x) / this.fallTime,
-                    (4.9 * this.fallTime) + ((this.target.y - pos.y) / this.fallTime)
+                    ((this.gravity.x / 2) * this.fallTime) + ((this.target.x - pos.x) / this.fallTime),
+                    ((this.gravity.y / 2) * this.fallTime) + ((this.target.y - pos.y) / this.fallTime)
                 );
             }
 
             //go towards target
-            this.vel.y -= 9.8 * dt; //gravity
+            this.vel.sub(this.gravity.clone().multiplyScalar(dt)); //apply gravity to vel
             this.addPos(this.vel.clone().multiplyScalar(dt));
         }
         else if(this.timer >= this.fallTime + this.stayTime) //fading
@@ -399,10 +426,10 @@ export class scoreParticle extends gameObject
         }
 
         const screenPos = worldToScreen(this.getPos(true), this.camera, this.ui.canvas.width, this.ui.canvas.height);
-        this.ui.fillStyle = "yellow";
-        this.ui.beginPath();
-	    this.ui.arc(screenPos.x, screenPos.y, 2.5, 0, Math.PI * 2);
-	    this.ui.fill();
+        this.ghostUi.fillStyle = "yellow";
+        this.ghostUi.beginPath();
+	    this.ghostUi.arc(screenPos.x, screenPos.y, 2.5, 0, Math.PI * 2);
+	    this.ghostUi.fill();
     }
 }
 

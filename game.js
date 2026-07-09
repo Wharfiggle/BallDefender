@@ -18,6 +18,12 @@ canvas.width = w;
 canvas.height = h;
 const ui = canvas.getContext("2d");
 
+//extra ui canvas with ghosting effect instead of normal drawing
+const ghostCanvas = document.getElementById("ghostui");
+ghostCanvas.width = w;
+ghostCanvas.height = h;
+const ghostUi = ghostCanvas.getContext("2d");
+
 //set up scene
 const fov = 50;
 const aspect = w / h;
@@ -45,7 +51,7 @@ pointLightBack.castShadow = true;
 scene.add(pointLightBack);
 
 //game objects
-const handler = new GameObject.handler(scene, ui, document);
+const handler = new GameObject.handler(scene, ui, ghostUi, document);
 handler.addGameObject(new GameObject.paddle(camera));
 handler.addGameObject(new GameObject.scoreKeeper(camera));
 
@@ -125,6 +131,14 @@ function tick(t = 0)
     //clear previously drawn ui frame
     ui.clearRect(0, 0, w, h);
     
+    //only partially clear previously drawn ui frame for ghost ui
+    ghostUi.save();
+    ghostUi.globalCompositeOperation = "destination-out";
+    ghostUi.fillStyle = "rgba(0, 0, 0, 0.2)";
+    ghostUi.fillRect(0, 0, w, h);
+    ghostUi.restore();
+    ghostUi.globalCompositeOperation = "source-over";
+    
     handler.tick(dt);
 
     renderer.render(scene, camera);
@@ -139,6 +153,8 @@ function handleWindowResize()
     renderer.setSize(w, h);
     canvas.width = w;
     canvas.height = h;
+    ghostCanvas.width = w;
+    ghostCanvas.height = h;
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
 }
