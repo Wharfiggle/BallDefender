@@ -24,7 +24,7 @@ function lerp(vec1, vec2, t)
 function worldToScreen(vector3, camera, screenWidth, screenHeight)
 {
     const screenPos = vector3.clone().project(camera);
-    return new THREE.Vector2((1 + screenPos.x) * screenWidth / 2, (1 - screenPos.y) * screenHeight / 2);
+    return new THREE.Vector2((1.0 + screenPos.x) * screenWidth / 2, (1.0 - screenPos.y) * screenHeight / 2);
 }
 
 export class handler
@@ -122,10 +122,11 @@ export class gameObject extends EventTarget
         if(!!this.mesh)
             this.mesh.position.copy(this.pos);
     }
-    getPos()
+    getPos(includeAddedDepth = false)
     {
         const vec = this.pos.clone();
-        vec.z -= this.addedDepth;
+        if(!includeAddedDepth)
+            vec.z -= this.addedDepth;
         return vec;
     }
 }
@@ -290,20 +291,27 @@ export class scoreKeeper extends gameObject
         cf.color = cf.startColor;
         cf.speed = !!speed ? speed : cf.defaultSpeed;
     }
-    addScore(num, pos)
+    async addScore(num, pos)
     {
-        const particle = new scoreParticle(this.camera, pos, num);
-        this.handler.addGameObject(particle, true);
-        particle.addEventListener("particleDeath", () => { 
-            this.score += num;
-            this.flashScoreColor(new THREE.Vector3(255, 255, 0));
-            localStorage.setItem("score", this.score); //save new score in local storage
-        }, { once: true });
+        if(num <= 0)
+            return;
+        
+        for(var i = 0; i < num; i++)
+        {
+            const particle = new scoreParticle(this.camera, pos, num);
+            particle.stayTime += i * 0.1;
+            this.handler.addGameObject(particle, true);
+            particle.addEventListener("particleDeath", () => { 
+                this.score += 1;
+                this.flashScoreColor(new THREE.Vector3(255, 255, 0));
+                localStorage.setItem("score", this.score); //save new score in local storage
+            }, { once: true });
+        }
     }
     subtractScore(num, pos)
     {
         this.score = Math.max(0, this.score - num);
-        this.flashScoreColor(new THREE.Vector3(20, 20, 20), false, 10);
+        this.flashScoreColor(new THREE.Vector3(50, 50, 50), false, 10);
         localStorage.setItem("score", this.score); //save new score in local storage
     }
     tick(dt)
@@ -332,10 +340,10 @@ export class scoreParticle extends gameObject
     fallTime = 1.0;
     stayTime = 0;
     fadeTime = 0;
-    maxOffset = 0.5;
+    //maxOffset = 0.5;
     camera = null;
     timer = 0;
-    vel = new THREE.Vector3();
+    vel = null;
     target = new THREE.Vector3();
     stopped = false;
     constructor(camera, startPos = new THREE.Vector3(), amount = null, fallTime = null, fadeTime = null)
@@ -348,16 +356,28 @@ export class scoreParticle extends gameObject
         this.camera = camera;
 
         //this.target = new THREE.Vector3(this.maxOffset * (Math.random() * 2 - 1), this.maxOffset * (Math.random() * 2 - 1));
-        const pos = this.getPos();
-        this.vel = new THREE.Vector3(
-            (this.target.x - pos.x) / this.fallTime,
-            (4.9 * this.fallTime) + ((this.target.y - pos.y) / this.fallTime)
-        );
     }
     tick(dt)
     {
         this.timer += dt;
-        if(this.timer >= this.fallTime)
+        if(this.timer < this.stayTime) //staying
+        {} //do nothing
+        else if(this.timer < this.stayTime + this.fallTime) //falling
+        {
+            if(this.vel == null)
+            {
+                const pos = this.getPos();
+                this.vel = new THREE.Vector3(
+                    (this.target.x - pos.x) / this.fallTime,
+                    (4.9 * this.fallTime) + ((this.target.y - pos.y) / this.fallTime)
+                );
+            }
+
+            //go towards target
+            this.vel.y -= 9.8 * dt; //gravity
+            this.addPos(this.vel.clone().multiplyScalar(dt));
+        }
+        else if(this.timer >= this.fallTime + this.stayTime) //fading
         {
             if(!this.stopped)
             {
@@ -377,13 +397,8 @@ export class scoreParticle extends gameObject
                 this.setPos(this.target.clone().multiplyScalar(Math.pow(opacity, 2)));
             }
         }
-        else //go towards target
-        {
-            this.vel.y -= 9.8 * dt; //gravity
-            this.addPos(this.vel.clone().multiplyScalar(dt));
-        }
 
-        const screenPos = worldToScreen(this.getPos(), this.camera, this.ui.canvas.width, this.ui.canvas.height);
+        const screenPos = worldToScreen(this.getPos(true), this.camera, this.ui.canvas.width, this.ui.canvas.height);
         this.ui.fillStyle = "yellow";
         this.ui.beginPath();
 	    this.ui.arc(screenPos.x, screenPos.y, 2.5, 0, Math.PI * 2);
@@ -399,7 +414,7 @@ export class ball extends gameObject
     radius = null;
     closeToCenter = false;
     deflected = false;
-    deflectShrinkSpeed = 10;
+    deflectShrinkSpeed = 18;
     shrinking = false;
     deflectThreshold = 0.85;
     centerLerp = 0;
@@ -438,17 +453,17 @@ export class ball extends gameObject
         //shrinking logic for deflected and when hit the center
         if(this.shrinking)
         {
-            const shrinkSpeed = this.deflected ? this.deflectShrinkSpeed : (this.centerSpeed / this.radius / 2);
+            const shrinkSpeed = this.deflected ? (this.deflectShrinkSpeed * Math.pow(this.mesh.scale.x, 1.5)) : (this.centerSpeed / this.radius / 2);
             const newScale = this.mesh.scale.x - dt * shrinkSpeed;
 
             //shrink to minimum size, then remove self
-            if(newScale > (this.deflected ? 0.1 : 0))
+            if(newScale * this.radius > (this.deflected ? 0.05 : 0))
                 this.mesh.scale.setScalar(newScale);
             else
             {
                 this.handler.removeGameObject(this);
                 if(this.deflected)
-                    scoreObj.addScore(1, pos);
+                    scoreObj.addScore(this.damage, this.getPos(true));
                 else
                     scoreObj.subtractScore(this.damage, pos);
             }
