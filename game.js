@@ -95,6 +95,7 @@ function tick(t = 0)
     requestAnimationFrame(tick);
     let dt = (t - lastTime) / 1000;
     lastTime = t;
+    let timems = t / 1000;
 
     //dont process this frame if it's is after a large accumulation of skipped frames
     if(dt > 1.0)
@@ -139,7 +140,7 @@ function tick(t = 0)
     ghostUi.restore();
     ghostUi.globalCompositeOperation = "source-over";
     
-    handler.tick(dt);
+    handler.tick(dt, timems);
 
     renderer.render(scene, camera);
 }

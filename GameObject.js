@@ -45,7 +45,7 @@ export class handler
             const copy = mesh.clone();
             copy.scale.setScalar(0);
             scene.add(copy);
-        }        
+        }
     }
     addGameObject(gameObj, under = false)
     {
@@ -69,11 +69,11 @@ export class handler
             return;
         this.scene.remove(mesh);
     }
-    tick(dt)
+    tick(dt, timems)
     {
         for(const go of this.gameObjects)
         {
-            go.tick(dt);
+            go.tick(dt, timems);
         }
 
         for(const rgo of this.removeGameObjects)
@@ -110,7 +110,15 @@ export class gameObject extends EventTarget
         this.setPos(startPos);
     }
     postInit(handler, ui, document){}
-    tick(dt){}
+    tick(dt, timems)
+    {
+        //automatically set any uTime uniforms on materials of meshes
+
+        if(!!this.mesh?.material?.userData?.shader?.uniforms?.uTime)
+            this.mesh.material.userData.shader.uniforms.uTime.value = timems;
+        else if(!!this.mesh?.material?.uniforms?.uTime)
+            this.mesh.material.uniforms.uTime.value = timems;
+    }
     setPos(vector3)
     {
         this.pos.copy(vector3);
@@ -210,8 +218,10 @@ export class paddle extends gameObject
             this.mesh.rotation.z = this.angle - Math.PI / 2;
         });
     }
-    tick(dt)
+    tick(dt, timems)
     {
+        super.tick(dt, timems);
+
         //modify dot size based on score's color flash
         const cf = scoreObj.colorFlash;
         if(cf.lerp < 1)
@@ -334,11 +344,13 @@ export class scoreKeeper extends gameObject
     subtractScore(num, pos)
     {
         this.score = Math.max(0, this.score - num);
-        this.flashScoreColor(this.colorFlash.subtractScoreColor, false, 10);
+        this.flashScoreColor(this.colorFlash.subtractScoreColor, false, 10 * Math.pow(0.6, num - 1));
         localStorage.setItem("score", this.score); //save new score in local storage
     }
-    tick(dt)
+    tick(dt, timems)
     {
+        super.tick(dt, timems);
+
         const cf = this.colorFlash;
         if(cf.lerp < 1)
         {
@@ -384,8 +396,10 @@ export class scoreParticle extends gameObject
 
         //this.target = new THREE.Vector3(this.maxOffset * (Math.random() * 2 - 1), this.maxOffset * (Math.random() * 2 - 1));
     }
-    tick(dt)
+    tick(dt, timems)
     {
+        super.tick(dt, timems);
+
         this.timer += dt;
         if(this.timer < this.stayTime) //staying
         {} //do nothing
@@ -433,6 +447,9 @@ export class scoreParticle extends gameObject
     }
 }
 
+
+// balls
+
 export class ball extends gameObject
 {
     damage = 1;
@@ -472,8 +489,10 @@ export class ball extends gameObject
 
         this.setPos(new THREE.Vector3(spawnPoint.x, spawnPoint.y, 0));
     }
-    tick(dt)
+    tick(dt, timems)
     {
+        super.tick(dt, timems);
+
         const pos = this.getPos();
         const dist = pos.length();
 
@@ -551,6 +570,7 @@ export class bob extends ball
     bobTime = 0;
     bobSpeed = 6;
     bobStrength = 0.3;
+    damage = 2;
     constructor(camera)
     {
         super(camera, meshes.bob);
@@ -573,6 +593,7 @@ export class bob extends ball
 export class orbiter extends ball
 {
     orbitSpeed = 25;
+    damage = 2;
     constructor(camera)
     {
         super(camera, meshes.orbiter);
