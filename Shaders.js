@@ -48,6 +48,7 @@ export function applyVerticeWobble(args, material)
     return material;
 }
 
+//cut out forward facing normals
 export function applyMarbleFresnel(material)
 {
     if(!material.userData.onBeforeCompileList)
@@ -75,7 +76,6 @@ const paddleTrailMat = new THREE.MeshStandardMaterial({
 
 export const shaders = {
     paddleTrailMat: paddleTrailMat,
-    applyVerticeWobble: applyVerticeWobble
 }
 
 
