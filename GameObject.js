@@ -161,23 +161,9 @@ export class paddle extends gameObject
     };
     atomEffect = {
         atoms: [],
-        anchors: [],
-        anchorAnchors: [],
-        orbitVels: [
-            new THREE.Vector3(Math.PI * 1.2324, Math.PI * 0.819123, Math.PI * 1.431134),
-            new THREE.Vector3(Math.PI * 0.64532, Math.PI * 0.289123, Math.PI * 1.751134),
-            new THREE.Vector3(Math.PI * 1.14532, Math.PI * 1.389123, Math.PI * 0.831134)
-        ],
-        anchorRotVels: [
-            new THREE.Vector3(Math.PI * 0.54532, Math.PI * 0.189123, Math.PI * 1.231134),
-            new THREE.Vector3(Math.PI * 0.74532, Math.PI * 1.289123, Math.PI * 0.531134),
-            new THREE.Vector3(Math.PI * 1.24532, Math.PI * 0.389123, Math.PI * 1.231134)
-        ],
-        radii: [
-            0.25,
-            0.28,
-            0.23
-        ]
+        numAtoms: 3,
+        orbitSpeed: 2.0,
+        spinSpeed: 1.0
     }
     constructor(camera)
     {
@@ -198,17 +184,27 @@ export class paddle extends gameObject
 
         //set up atoms for atom effect
         const ae = this.atomEffect;
-        for(var i = 0; i < ae.radii.length; i++)
+        for(var i = 0; i < ae.numAtoms; i++)
         {
             const atom = new THREE.Object3D();
-            atom.position.set(0, ae.radii[i], 0);
-            ae.atoms.push(atom);
 
-            ae.anchors.push(new THREE.Object3D());
-            ae.anchors[i].add(atom);
+            const parent = new THREE.Object3D();
+            parent.add(atom);
 
-            ae.anchorAnchors.push(new THREE.Object3D());
-            ae.anchorAnchors[i].add(ae.anchors[i]);
+            const grandparent = new THREE.Object3D();
+            grandparent.add(parent);
+
+            const atomObj = {
+                radius: 0.2,
+                atom: atom,
+                parent: parent,
+                parentVel: new THREE.Vector3(Math.PI * Math.random() * ae.orbitSpeed, Math.PI * Math.random() * ae.orbitSpeed, Math.PI * Math.random() * ae.orbitSpeed),
+                grandparent: grandparent,
+                grandparentVel: new THREE.Vector3(Math.PI * Math.random() * ae.spinSpeed, Math.PI * Math.random() * ae.spinSpeed, Math.PI * Math.random() * ae.spinSpeed)
+            };
+            ae.atoms.push(atomObj);
+
+            atom.position.set(0, ae.atoms[i].radius, 0);
         }
 
         paddleObj = this;
@@ -290,20 +286,17 @@ export class paddle extends gameObject
         for(var i = 0; i < ae.atoms.length; i++)
         {
             //rotate atoms
-            const anchor = ae.anchors[i];
-            const anchorAnchor = ae.anchorAnchors[i];
-            const aRot = ae.orbitVels[i];
-            const aaRot = ae.anchorRotVels[i];
-            anchor.rotateX(aRot.x * dt);
-            anchor.rotateY(aRot.y * dt);
-            anchor.rotateZ(aRot.z * dt);
-            anchorAnchor.rotateX(aaRot.x * dt);
-            anchorAnchor.rotateY(aaRot.y * dt);
-            anchorAnchor.rotateZ(aaRot.z * dt);
+            const atom = ae.atoms[i];
+            atom.parent.rotateX(atom.parentVel.x * dt);
+            atom.parent.rotateY(atom.parentVel.y * dt);
+            atom.parent.rotateZ(atom.parentVel.z * dt);
+            atom.grandparent.rotateX(atom.grandparentVel.x * dt);
+            atom.grandparent.rotateY(atom.grandparentVel.y * dt);
+            atom.grandparent.rotateZ(atom.grandparentVel.z * dt);
 
             //draw 2d circle in ghost ui
             const worldPos = new THREE.Vector3();
-            ae.atoms[i].getWorldPosition(worldPos);
+            ae.atoms[i].atom.getWorldPosition(worldPos);
             const screenPos = worldToScreen(worldPos, this.camera, this.ui.canvas.width, this.ui.canvas.height);
             this.ghostUi.fillStyle = "white";
             this.ghostUi.beginPath();
