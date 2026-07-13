@@ -145,7 +145,9 @@ export class paddle extends gameObject
 {
     paddleMesh = meshes.paddle.clone();
     radius = 2.5;
-    angle = 0;
+    targetAngle = Math.PI / 2;
+    maxRotSpeed = Math.PI * 10; //radians per second
+    angle = Math.PI / 2;
     width = null;
     pointLight = null;
     camera = null;
@@ -163,7 +165,7 @@ export class paddle extends gameObject
         atoms: [],
         numAtoms: 3,
         orbitSpeed: 2.0,
-        spinSpeed: 1.0
+        spinSpeed: 2.0
     }
     constructor(camera)
     {
@@ -194,13 +196,15 @@ export class paddle extends gameObject
             const grandparent = new THREE.Object3D();
             grandparent.add(parent);
 
+            const randRad = () => { return 2 * Math.PI * (Math.random() - 0.5) }
+
             const atomObj = {
                 radius: 0.2,
                 atom: atom,
                 parent: parent,
-                parentVel: new THREE.Vector3(Math.PI * Math.random() * ae.orbitSpeed, Math.PI * Math.random() * ae.orbitSpeed, Math.PI * Math.random() * ae.orbitSpeed),
+                parentVel: new THREE.Vector3(randRad() * ae.orbitSpeed, randRad() * ae.orbitSpeed, randRad() * ae.orbitSpeed),
                 grandparent: grandparent,
-                grandparentVel: new THREE.Vector3(Math.PI * Math.random() * ae.spinSpeed, Math.PI * Math.random() * ae.spinSpeed, Math.PI * Math.random() * ae.spinSpeed)
+                grandparentVel: new THREE.Vector3(randRad() * ae.spinSpeed, randRad() * ae.spinSpeed, randRad() * ae.spinSpeed),
             };
             ae.atoms.push(atomObj);
 
@@ -216,7 +220,7 @@ export class paddle extends gameObject
         // set up instanced meshes
         
         const maxMeshes = Math.floor(this.trail.maxLength / this.trail.gap);
-        console.log(maxMeshes);
+        console.log("Maximum instanced meshes per trail: " + maxMeshes);
         tr.ccwMeshes = new THREE.InstancedMesh(this.paddleMesh.geometry, shaders.paddleTrailMat, maxMeshes);
         tr.cwMeshes = tr.ccwMeshes.clone();
 
@@ -244,8 +248,7 @@ export class paddle extends gameObject
         //respond to mouseEvent fired from game.js and rotate with mouse direction
         document.addEventListener("mouseEvent", event => {
             const e = event.detail;
-            this.angle = Math.atan2(e.coord.y, e.coord.x);
-            this.mesh.rotation.z = this.angle - Math.PI / 2;
+            this.targetAngle = Math.atan2(e.coord.y, e.coord.x);
         });
     }
     tick(dt, timems)
@@ -296,7 +299,7 @@ export class paddle extends gameObject
 
             //draw 2d circle in ghost ui
             const worldPos = new THREE.Vector3();
-            ae.atoms[i].atom.getWorldPosition(worldPos);
+            atom.atom.getWorldPosition(worldPos);
             const screenPos = worldToScreen(worldPos, this.camera, this.ui.canvas.width, this.ui.canvas.height);
             this.ghostUi.fillStyle = "white";
             this.ghostUi.beginPath();
@@ -312,12 +315,25 @@ export class paddle extends gameObject
         //shrink trail length over time
         tr.length -= (tr.length > 0 ? 1 : -1) * tr.lengthReduceSpeed * Math.abs(tr.length) * dt;
 
-        //calculate angle difference from last frame and apply to trail length
-        const angDiff = (tr.lastAngle - this.angle) % (2 * Math.PI);
+        //calculate angle difference from last frame and clamp to maxRotSpeed
+        const angDiff = (tr.lastAngle - this.targetAngle) % (2 * Math.PI);
         const ccwDiff = angDiff < 0 ? angDiff + (2 * Math.PI) : angDiff; //counter clockwise difference
         const cwDiff = (2 * Math.PI - ccwDiff) % (2 * Math.PI); //clockwise difference
         const ccw = ccwDiff < cwDiff; //went counterclockwise if ccwDiff is shorter than cwDiff and vice versa
-        tr.length += (ccw ? ccwDiff : -cwDiff); //counterclockwise movement is positive, clockwise movement is negative
+        let finalDiff = (ccw ? ccwDiff : cwDiff);
+        if(finalDiff > this.maxRotSpeed * dt)
+        {
+            finalDiff = this.maxRotSpeed * dt;
+            this.angle += (ccw ? -1 : 1) * finalDiff;
+        }
+        else
+            this.angle = this.targetAngle;
+        
+        //apply to mesh
+        this.mesh.rotation.z = this.angle - Math.PI / 2;
+        
+        //apply final angle difference to trail length
+        tr.length += (ccw ? finalDiff : -finalDiff); //counterclockwise movement is positive, clockwise movement is negative
         tr.length = Math.min(tr.maxLength, Math.max(-tr.maxLength, tr.length)); //clamp length
 
         //derrive mesh count from trail length

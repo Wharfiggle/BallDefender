@@ -85,10 +85,21 @@ function dispatchMouseEvent(event)
 }
 
 
-//tick
+//ball spawning variables
 const ballSpawnTime = 0.5;
 let ballSpawnTimer = ballSpawnTime;
+const ballSpawnWeights = [
+    { type: GameObject.ball, weight: 1 },
+    { type: GameObject.bob, weight: 1 },
+    { type: GameObject.orbiter, weight: 1 },
+    { type: GameObject.bertha, weight: 1 }
+];
+const ballSpawnWeightSum = ballSpawnWeights.reduce((sum, e) => sum + e.weight, 0);
 
+//always start with a bertha on screen
+handler.addGameObject(new GameObject.bertha(camera));
+
+//tick
 let lastTime = 0;
 function tick(t = 0)
 {
@@ -106,17 +117,11 @@ function tick(t = 0)
     if(ballSpawnTimer <= 0)
     {
         ballSpawnTimer = ballSpawnTime;
-        const weightedTypes = [
-            { type: GameObject.ball, weight: 0.25 },
-            { type: GameObject.bob, weight: 0.25 },
-            { type: GameObject.orbiter, weight: 0.25 },
-            { type: GameObject.bertha, weight: 0.25 }
-        ]
-        const rn = Math.random();
+        const rn = Math.random() * ballSpawnWeightSum;
 
         let weightTotal = 0;
         let type = GameObject.ball;
-        for(const wt of weightedTypes)
+        for(const wt of ballSpawnWeights)
         {
             weightTotal += wt.weight;
             if(rn < weightTotal)
