@@ -145,6 +145,12 @@ export class paddle extends gameObject
 {
     paddleMesh = meshes.paddle.clone();
     radius = 2.5;
+    radiusStretch = {
+        cursorDist: 0,
+        screenCornerToCenter: 0,
+        initRadius: 0,
+        stretchAmount: 0.25,
+    }
     targetAngle = Math.PI / 2;
     maxRotSpeed = Math.PI * 10; //radians per second
     angle = Math.PI / 2;
@@ -215,9 +221,8 @@ export class paddle extends gameObject
     }
     postInit(handler, ui, document)
     {
-        const tr = this.trail;
-
         // set up instanced meshes
+        const tr = this.trail;
         
         const maxMeshes = Math.floor(this.trail.maxLength / this.trail.gap);
         console.log("Maximum instanced meshes per trail: " + maxMeshes);
@@ -235,20 +240,26 @@ export class paddle extends gameObject
                 const a = tr.gap * (i + 1) * trailDir + Math.PI / 2;
                 const scale = (maxMeshes - i) / maxMeshes;
                 dummy.scale.setScalar(scale);
-                dummy.position.set(Math.cos(a) * this.radius, Math.sin(a) * this.radius, 0);
+                dummy.position.set(Math.cos(a) * this.radius, Math.sin(a) * this.radius - this.paddleMesh.position.y, 0);
                 dummy.rotation.z = a - Math.PI / 2;
                 dummy.updateMatrix();
                 const meshes = trailDir == 1 ? tr.ccwMeshes : tr.cwMeshes;
                 meshes.setMatrixAt(i, dummy.matrix);
             }
         }
-        this.mesh.add(tr.ccwMeshes);
-        this.mesh.add(tr.cwMeshes);
+        this.paddleMesh.add(tr.ccwMeshes);
+        this.paddleMesh.add(tr.cwMeshes);
+
+        //initialize radiusStretch values
+        const rs = this.radiusStretch;
+        rs.screenCornerToCenter = new THREE.Vector2(ui.canvas.width, ui.canvas.height).length();
+        rs.initRadius = this.radius;
 
         //respond to mouseEvent fired from game.js and rotate with mouse direction
         document.addEventListener("mouseEvent", event => {
             const e = event.detail;
             this.targetAngle = Math.atan2(e.coord.y, e.coord.x);
+            this.radiusStretch.cursorDist = e.coord.length();
         });
     }
     tick(dt, timems)
@@ -307,6 +318,13 @@ export class paddle extends gameObject
             this.ghostUi.fill();
         }
 
+        
+        //stretch paddle radius based on where user's cursor is
+        const rs = this.radiusStretch;
+        this.radius = rs.initRadius - rs.stretchAmount + rs.cursorDist * rs.stretchAmount * 2;
+        this.paddleMesh.position.y = this.radius;
+        this.paddleMesh.scale.y = 1.0 - rs.cursorDist / 4;
+        this.paddleMesh.scale.x = 1.0 + rs.cursorDist / 4;
 
         // draw trail of instanced meshes following paddle based on prior rotations
         
