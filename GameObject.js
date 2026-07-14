@@ -149,7 +149,8 @@ export class paddle extends gameObject
         cursorDist: 0,
         screenCornerToCenter: 0,
         initRadius: 0,
-        stretchAmount: 0.25,
+        stretchAmount: 0.0,
+        sizeStretchAmount: 0.0
     }
     targetAngle = Math.PI / 2;
     maxRotSpeed = Math.PI * 10; //radians per second
@@ -323,8 +324,8 @@ export class paddle extends gameObject
         const rs = this.radiusStretch;
         this.radius = rs.initRadius - rs.stretchAmount + rs.cursorDist * rs.stretchAmount * 2;
         this.paddleMesh.position.y = this.radius;
-        this.paddleMesh.scale.y = 1.0 - rs.cursorDist / 4;
-        this.paddleMesh.scale.x = 1.0 + rs.cursorDist / 4;
+        this.paddleMesh.scale.y = 1.0 - rs.cursorDist * rs.sizeStretchAmount;
+        this.paddleMesh.scale.x = 1.0 + rs.cursorDist * rs.sizeStretchAmount;
 
         // draw trail of instanced meshes following paddle based on prior rotations
         
