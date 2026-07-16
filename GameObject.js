@@ -259,7 +259,7 @@ export class paddle extends gameObject
         //respond to mouseEvent fired from game.js and rotate with mouse direction
         document.addEventListener("mouseEvent", event => {
             const e = event.detail;
-            this.targetAngle = Math.atan2(e.coord.y, e.coord.x);
+            this.targetAngle = -Math.atan2(e.pos.y - ui.canvas.height / 2, e.pos.x - ui.canvas.width / 2);
             this.radiusStretch.cursorDist = e.coord.length();
         });
     }
@@ -554,6 +554,7 @@ export class ball extends gameObject
     deflectThreshold = 0.85;
     centerLerp = 0;
     centerSpeed = 5;
+    organelle = null;
     //pointLight = null;
     //cullDistance = null;
     constructor(camera, mesh = null, addedDepth = 0)
@@ -580,9 +581,17 @@ export class ball extends gameObject
 
         this.setPos(new THREE.Vector3(spawnPoint.x, spawnPoint.y, 0));
     }
+    postInit(handler, ui, document)
+    {
+        if(!!this.organelle)
+            this.mesh.add(this.organelle);
+    }
     tick(dt, timems)
     {
         super.tick(dt, timems);
+
+        if(!!this.organelle?.material?.userData?.shader?.uniforms?.uTime)
+            this.organelle.material.userData.shader.uniforms.uTime.value = timems;
 
         const pos = this.getPos();
         const dist = pos.length();
@@ -709,5 +718,6 @@ export class bertha extends ball
     constructor(camera)
     {
         super(camera, meshes.bertha, -2);
+        this.organelle = meshes.organelleBertha.clone();
     }
 }

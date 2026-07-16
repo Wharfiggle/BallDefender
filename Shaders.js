@@ -92,6 +92,12 @@ function establishOnBeforeCompileChain(material)
     material.customProgramCacheKey = () => { return material.userData.cacheKey; }
     
     material.onBeforeCompile = (shader) => {
+        shader.uniforms.uTime = { value: 0 };
+        shader.vertexShader = `uniform float uTime;
+            ` + shader.vertexShader;
+        shader.fragmentShader = `uniform float uTime;
+            ` + shader.fragmentShader;
+
         const onbcl = material.userData.onBeforeCompileList;
         for(var i = 0; i < onbcl.length; i++)
         {
@@ -112,43 +118,44 @@ export function applyOrganelle(material)
         material = establishOnBeforeCompileChain(material);
 
     material.userData.onBeforeCompileList.push((shader) => {
-        shader.uniforms.uTime = { value: 0 };
-
-        //pass uniforms
-        shader.vertexShader = `uniform float uTime;
-            ` + shader.vertexShader;
-        shader.fragmentShader = `uniform float uTime;
-            ` + shader.fragmentShader;
-        
         //pass uvs from vertex shader to fragment shader
         shader.vertexShader = shader.vertexShader.replace(
             "#include <uv_pars_vertex>", `#include <uv_pars_vertex>
-            varying vec2 vUv;`
+            varying vec2 vUv;
+            varying float vDisplacement;`
         ).replace(
             "#include <uv_vertex>", `#include <uv_vertex>
             vUv = uv;`
         );
 
-        shader.fragmentShader = shader.fragmentShader.replace(
-            "#include <uv_pars_fragment>", `#include <uv_pars_fragment>
-            varying vec2 vUv;
-            ` + shaderFunctions.smoothMod + `
+        shader.vertexShader = shader.vertexShader.replace(
+            "void main() {",
+            shaderFunctions.smoothMod + `
             ` + shaderFunctions.fit + `
             ` + shaderFunctions.perlin3dNoise + `
             float wave(vec3 position)
             { return fit(smoothMod(position.y * 6.0, 1.0, 1.5), 0.35, 0.6, 0.0, 1.0); }
-            `
+
+            void main() {`
         ).replace(
-            "#include <opaque_fragment>", `#include <opaque_fragment>
+            "#include <normal_vertex>", `#include <normal_vertex>
             vec3 coords = vNormal;
             coords.y += uTime / 5.0;
             vec3 noisePattern = vec3(noise(coords));
-            float pattern = wave(noisePattern);
-            gl_FragColor = vec4(vec3(pattern), 1.0);
-            return;`
+            vDisplacement = wave(noisePattern);`
+        ).replace(
+            "#include <begin_vertex>", `#include <begin_vertex>
+            transformed *= vDisplacement;`
         );
 
-        console.log(shader.fragmentShader);
+        shader.fragmentShader = shader.fragmentShader.replace(
+            '#include <common>', `#include <common>
+            varying vec3 vMyPosition;
+            varying float vDisplacement;`
+        ).replace(
+            "#include <opaque_fragment>", `#include <opaque_fragment>
+            gl_FragColor.rgb *= vDisplacement * 0.5;`
+        );
     });
 
     material.userData.cacheKey += "organelle";
@@ -164,12 +171,6 @@ export function applyVerticeWobble(args, material)
         material = establishOnBeforeCompileChain(material);
 
     material.userData.onBeforeCompileList.push((shader) => {
-        shader.uniforms.uTime = { value: 0 };
-
-        //pass uniforms
-        shader.vertexShader = `uniform float uTime;
-            ` + shader.vertexShader;
-
         //begin_vertex is where transformed is calculated from vertex position
         shader.vertexShader = shader.vertexShader.replace(
             "#include <begin_vertex>", `#include <begin_vertex>
@@ -216,28 +217,39 @@ const standardBallMesh = new THREE.IcosahedronGeometry(0.5, 2);
 export const meshes = {
     ball: new THREE.Mesh(
         standardBallMesh,
-        //applyMarbleFresnel(
-        applyOrganelle(
-            //applyVerticeWobble({wobbleAmount: "6.0"},
-                new THREE.MeshStandardMaterial({ color: "purple", transparent: true }))//)
+        applyMarbleFresnel(
+            applyVerticeWobble({wobbleAmount: "6.0"},
+                new THREE.MeshStandardMaterial({ color: "purple", transparent: true, depthWrite: false, depthTest: true })))
     ),
     bob: new THREE.Mesh(
         standardBallMesh,
         applyMarbleFresnel(
             applyVerticeWobble({wobbleAmount: "6.0"},
-                new THREE.MeshStandardMaterial({ color: "green", transparent: true})))
+                new THREE.MeshStandardMaterial({ color: "green", transparent: true, depthWrite: false, depthTest: true })))
     ),
     orbiter: new THREE.Mesh(
         standardBallMesh,
         applyMarbleFresnel(
             applyVerticeWobble({wobbleAmount: "6.0"},
-                new THREE.MeshStandardMaterial({ color: "navy", transparent: true })))
+                new THREE.MeshStandardMaterial({ color: "navy", transparent: true, depthWrite: false, depthTest: true })))
     ),
     bertha: new THREE.Mesh(
         new THREE.IcosahedronGeometry(1.5, 6),
         applyMarbleFresnel(
             applyVerticeWobble({wobbleAmount: "2.0"},
-                new THREE.MeshStandardMaterial({ color: "red", transparent: true })))
+                new THREE.MeshStandardMaterial({ color: "red", transparent: true, depthWrite: false, depthTest: true })))
+    ),
+    organelle: new THREE.Mesh(
+        new THREE.IcosahedronGeometry(0.33, 15),
+        applyVerticeWobble({wobbleAmount: "2.0"},
+            applyOrganelle(
+                new THREE.MeshStandardMaterial({ color: "yellow", transparent: true })))
+    ),
+    organelleBertha: new THREE.Mesh(
+        new THREE.IcosahedronGeometry(1.0, 45),
+        applyVerticeWobble({wobbleAmount: "2.0"},
+            applyOrganelle(
+                new THREE.MeshStandardMaterial({ color: "yellow", transparent: true })))
     ),
     /*point: new THREE.Mesh(
         new THREE.IcosahedronGeometry(0.1, 1),
@@ -248,3 +260,16 @@ export const meshes = {
         new THREE.MeshStandardMaterial({ color: "white" })
     )
 }
+
+meshes.bertha.renderOrder = 1;
+meshes.ball.renderOrder = 1;
+meshes.bob.renderOrder = 1;
+meshes.orbiter.renderOrder = 1;
+
+meshes.organelleBertha.renderOrder = 0;
+meshes.organelle.renderOrder = 0;
+
+meshes.bertha.add(meshes.organelleBertha.clone());
+meshes.ball.add(meshes.organelle.clone());
+meshes.bob.add(meshes.organelle.clone());
+meshes.orbiter.add(meshes.organelle.clone());
