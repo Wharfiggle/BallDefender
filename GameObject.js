@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { getRandomPointOnRectangle } from "./RandomPointOnRectangle.js";
-import { shaders, meshes } from "./Shaders.js";
+import { paddleTrailMat, meshes } from "./Shaders.js";
 
 let paddleObj = null;
 let scoreObj = null;
@@ -114,10 +114,16 @@ export class gameObject extends EventTarget
     {
         //automatically set any uTime uniforms on materials of meshes
 
-        if(!!this.mesh?.material?.userData?.shader?.uniforms?.uTime)
-            this.mesh.material.userData.shader.uniforms.uTime.value = timems;
-        else if(!!this.mesh?.material?.uniforms?.uTime)
-            this.mesh.material.uniforms.uTime.value = timems;
+        if(!this.mesh)
+            return;
+
+        this.mesh.traverse((mesh) => {
+            let uTime = mesh.material?.userData?.shader?.uniforms?.uTime;
+            if(!uTime)
+                uTime = mesh.material?.uniforms?.uTime;
+            if(!!uTime)
+                uTime.value = timems;
+        });
     }
     setPos(vector3)
     {
@@ -170,9 +176,10 @@ export class paddle extends gameObject
     };
     atomEffect = {
         atoms: [],
-        numAtoms: 3,
+        numAtoms: 4,
         orbitSpeed: 2.0,
-        spinSpeed: 2.0
+        spinSpeed: 2.0,
+        radius: 0.3
     }
     constructor(camera)
     {
@@ -206,7 +213,7 @@ export class paddle extends gameObject
             const randRad = () => { return 2 * Math.PI * (Math.random() - 0.5) }
 
             const atomObj = {
-                radius: 0.2,
+                radius: ae.radius,
                 atom: atom,
                 parent: parent,
                 parentVel: new THREE.Vector3(randRad() * ae.orbitSpeed, randRad() * ae.orbitSpeed, randRad() * ae.orbitSpeed),
@@ -227,7 +234,8 @@ export class paddle extends gameObject
         
         const maxMeshes = Math.floor(this.trail.maxLength / this.trail.gap);
         console.log("Maximum instanced meshes per trail: " + maxMeshes);
-        tr.ccwMeshes = new THREE.InstancedMesh(this.paddleMesh.geometry, shaders.paddleTrailMat, maxMeshes);
+        tr.ccwMeshes = new THREE.InstancedMesh(this.paddleMesh.geometry, paddleTrailMat, maxMeshes);
+        tr.ccwMeshes.renderOrder = this.paddleMesh.renderOrder - 0.5;
         tr.cwMeshes = tr.ccwMeshes.clone();
 
         //set instanced mesh transforms
@@ -554,7 +562,6 @@ export class ball extends gameObject
     deflectThreshold = 0.85;
     centerLerp = 0;
     centerSpeed = 5;
-    organelle = null;
     //pointLight = null;
     //cullDistance = null;
     constructor(camera, mesh = null, addedDepth = 0)
@@ -581,17 +588,9 @@ export class ball extends gameObject
 
         this.setPos(new THREE.Vector3(spawnPoint.x, spawnPoint.y, 0));
     }
-    postInit(handler, ui, document)
-    {
-        if(!!this.organelle)
-            this.mesh.add(this.organelle);
-    }
     tick(dt, timems)
     {
         super.tick(dt, timems);
-
-        if(!!this.organelle?.material?.userData?.shader?.uniforms?.uTime)
-            this.organelle.material.userData.shader.uniforms.uTime.value = timems;
 
         const pos = this.getPos();
         const dist = pos.length();
@@ -718,6 +717,5 @@ export class bertha extends ball
     constructor(camera)
     {
         super(camera, meshes.bertha, -2);
-        this.organelle = meshes.organelleBertha.clone();
     }
 }
