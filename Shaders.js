@@ -146,7 +146,7 @@ export function applyOrganelle(args, material)
         ).replace(
             "#include <normal_vertex>", `#include <normal_vertex>
             vec3 coords = vNormal;
-            coords.y += uTime / 2.0;
+            coords.y += (uTime + length(modelMatrix[3].xyz)) / 2.0;
             vec3 noisePattern = vec3(noise(coords));
             vDisplacement = wave(noisePattern);`
         ).replace(

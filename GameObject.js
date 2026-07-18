@@ -176,10 +176,16 @@ export class paddle extends gameObject
     };
     atomEffect = {
         atoms: [],
-        numAtoms: 4,
-        orbitSpeed: 2.0,
-        spinSpeed: 2.0,
+        atomsParent: new THREE.Object3D(),
+        numAtoms: 5,
+        orbitSpeed: 1.0,
+        spinSpeed: 1.0,
         radius: 0.3
+    };
+    autoRotate = {
+        speed: Math.PI / 5, //radians per second
+        time: 5, //seconds
+        timeWithoutInput: 4
     }
     constructor(camera)
     {
@@ -200,6 +206,7 @@ export class paddle extends gameObject
 
         //set up atoms for atom effect
         const ae = this.atomEffect;
+        this.mesh.add(ae.atomsParent);
         for(var i = 0; i < ae.numAtoms; i++)
         {
             const atom = new THREE.Object3D();
@@ -209,6 +216,10 @@ export class paddle extends gameObject
 
             const grandparent = new THREE.Object3D();
             grandparent.add(parent);
+
+            ae.atomsParent.add(grandparent);
+
+            this.mesh.add(ae.atomsParent);
 
             const randRad = () => { return 2 * Math.PI * (Math.random() - 0.5) }
 
@@ -269,6 +280,7 @@ export class paddle extends gameObject
             const e = event.detail;
             this.targetAngle = -Math.atan2(e.pos.y - ui.canvas.height / 2, e.pos.x - ui.canvas.width / 2);
             this.radiusStretch.cursorDist = e.coord.length();
+            this.autoRotate.timeWithoutInput = 0;
         });
     }
     tick(dt, timems)
@@ -306,6 +318,7 @@ export class paddle extends gameObject
 
         //draw ghosting atoms flying around dot in center
         const ae = this.atomEffect;
+        ae.atomsParent.scale.setScalar(this.dotSizeMod * this.dotSizeMod);
         for(var i = 0; i < ae.atoms.length; i++)
         {
             //rotate atoms
@@ -326,6 +339,13 @@ export class paddle extends gameObject
             this.ghostUi.arc(screenPos.x, screenPos.y, 1.0, 0, Math.PI * 2);
             this.ghostUi.fill();
         }
+
+
+        //auto rotate after idling long enough
+        const ar = this.autoRotate;
+        ar.timeWithoutInput += dt;
+        if(ar.timeWithoutInput > ar.time)
+            this.targetAngle = this.angle - ar.speed * dt;
 
         
         //stretch paddle radius based on where user's cursor is
@@ -559,7 +579,7 @@ export class ball extends gameObject
     deflected = false;
     deflectShrinkSpeed = 18;
     shrinking = false;
-    deflectThreshold = 0.85;
+    deflectThreshold = 0.825;
     centerLerp = 0;
     centerSpeed = 5;
     //pointLight = null;
@@ -713,7 +733,7 @@ export class bertha extends ball
     speed = 1.5;
     centerSpeed = 1.5;
     damage = 5;
-    deflectThreshold = 0.7;
+    deflectThreshold = 0.675;
     constructor(camera)
     {
         super(camera, meshes.bertha, -2);
