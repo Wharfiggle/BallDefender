@@ -220,7 +220,7 @@ export const paddleTrailMat = new THREE.MeshStandardMaterial({
 const standardBallMesh = new THREE.IcosahedronGeometry(0.65, 3); 
 export const meshes = {
     organelleBertha: new THREE.Mesh(
-        new THREE.IcosahedronGeometry(1.0, 45),
+        new THREE.IcosahedronGeometry(1.0, 20),
         applyVerticeWobble({intensity: "2.0", speed: "5.0"},
             applyOrganelle({density: "3.0", colorIntensity: "3.0"},
                 new THREE.MeshStandardMaterial({ color: "yellow", side:THREE.FrontSide })))
@@ -232,7 +232,7 @@ export const meshes = {
                 new THREE.MeshStandardMaterial({ color: "red" })))
     ),
     organelle: new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.5, 15),
+        new THREE.IcosahedronGeometry(0.5, 5),
         applyVerticeWobble({intensity: "2.0"},
             applyOrganelle({density: "1.5", colorIntensity: "5.0"},
                 new THREE.MeshStandardMaterial({ color: "yellow" })))

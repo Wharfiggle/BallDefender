@@ -577,7 +577,7 @@ export class ball extends gameObject
     radius = null;
     closeToCenter = false;
     deflected = false;
-    deflectShrinkSpeed = 18;
+    deflectShrinkSpeed = 15;
     shrinking = false;
     deflectThreshold = 0.825;
     centerLerp = 0;
@@ -607,6 +607,8 @@ export class ball extends gameObject
         //this.cullDistance = viewSize.length();
 
         this.setPos(new THREE.Vector3(spawnPoint.x, spawnPoint.y, 0));
+
+        this.mesh.children[0].rotation.z = Math.PI;
     }
     tick(dt, timems)
     {
@@ -618,7 +620,7 @@ export class ball extends gameObject
         //shrinking logic for deflected and when hit the center
         if(this.shrinking)
         {
-            const shrinkSpeed = this.deflected ? (this.deflectShrinkSpeed * Math.pow(this.mesh.scale.x, 1.5)) : (this.centerSpeed / this.radius / 2);
+            const shrinkSpeed = this.deflected ? (this.deflectShrinkSpeed * this.mesh.scale.x) : (this.centerSpeed / this.radius / 2);
             const newScale = this.mesh.scale.x - dt * shrinkSpeed;
 
             //shrink to minimum size, then remove self
@@ -668,12 +670,16 @@ export class ball extends gameObject
             {
                 if(this.centerLerp < 1)
                     this.centerLerp = Math.min(1, this.centerLerp + dt * 3);
-                this.addPos( lerp(this.getMoveVector(dt, this.speed), this.getCenterMoveVector(dt, this.centerSpeed), this.centerLerp) );
+                const moveVec = lerp(this.getMoveVector(dt, this.speed), this.getCenterMoveVector(dt, this.centerSpeed), this.centerLerp);
+                this.addPos( moveVec );
+                //this.mesh.rotation.z = Math.atan2(moveVec.y, moveVec.x) + Math.PI / 1.5;
             }
         }
         else
         {
-            this.addPos(this.getMoveVector(dt, this.speed));
+            const moveVec = this.getMoveVector(dt, this.speed);
+            this.addPos(moveVec);
+            this.mesh.rotation.z = Math.atan2(moveVec.y, moveVec.x) + Math.PI / 1.5;
 
             //cull once far enough away if deflected
             /*if(this.deflected && dist > this.cullDistance)
