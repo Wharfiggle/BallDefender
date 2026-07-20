@@ -486,7 +486,7 @@ export class scoreKeeper extends gameObject
 
         this.ui.fillStyle = `rgb(${cf.color.x}, ${cf.color.y}, ${cf.color.z})`;
         this.ui.font = `${Math.floor(48 * this.ui.canvas.height / uiScaleHeight)}px serif`;
-        this.ui.fillText(this.score, 10, 50);
+        this.ui.fillText(this.score, 10 * this.ui.canvas.height / uiScaleHeight, 50 * this.ui.canvas.height / uiScaleHeight);
     }
 }
 
