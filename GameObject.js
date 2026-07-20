@@ -56,10 +56,7 @@ export class handler
             gameObj.tags.push(str);
         
         if(!this.tagGroups[str])
-        {
             this.tagGroups[str] = [gameObj];
-            console.log(this.tagGroups);
-        }
         else
             this.tagGroups[str].push(gameObj);
     }
@@ -104,7 +101,8 @@ export class handler
             this.removeMesh(rgo.mesh);
             for(const tag of rgo.tags)
             {
-                this.tagGroups[tag].filter(e => e != rgo);
+                const rgoInd = this.tagGroups[tag].indexOf(rgo);
+                this.tagGroups[tag].splice(rgoInd, 1);
             }
         }
         this.gameObjects = this.gameObjects.filter(e => !this.removeGameObjects.includes(e));
@@ -344,9 +342,14 @@ export class paddle extends gameObject
 	    this.ui.arc(this.ui.canvas.width / 2, this.ui.canvas.height / 2, (5 * this.ui.canvas.height / uiScaleHeight) * this.dotSizeMod, 0, Math.PI * 2);
 	    this.ui.fill();
 
-        //draw ghosting atoms flying around dot in center
+        // draw ghosting atoms flying around dot in center
         const ae = this.atomEffect;
-        ae.atomsParent.scale.setScalar(this.dotSizeMod * this.dotSizeMod / 2 + 0.5);
+        
+        //displace atoms from center based on dotSizezMod
+        const currSize = ae.atomsParent.scale.x;
+        const targetSize = this.dotSizeMod * this.dotSizeMod / 2 + 0.5;
+        ae.atomsParent.scale.setScalar(currSize + (targetSize - currSize) * 10 * dt);
+        
         for(var i = 0; i < ae.atoms.length; i++)
         {
             //rotate atoms
@@ -642,16 +645,18 @@ export class ball extends gameObject
     {
         //check if this would be inside any other ball and move accordingly
         const ang = Math.atan2(this.pos.y, this.pos.x);
-        for(const ball of handler.getGroupByTag("ball"))
+        const balls = handler.getGroupByTag("ball");
+        for(var i = 0; i < balls.length; i++)
         {
-            const dist = ball.getPos().sub(this.getPos());
-            if(dist < this.radius + ball.radius)
+            const ball = balls[i];
+            const dist = ball.getPos().sub(this.getPos()).length();
+            if(dist < this.radius + ball.radius + 2.0)
             {
-                const newLen = this.pos.length() + dist;
+                const newLen = this.pos.length() + dist + 2.0;
                 this.setPos(new THREE.Vector3(Math.cos(ang) * newLen, Math.sin(ang) * newLen));
+                i = 0;
             }
         }
-        console.log(handler.getGroupByTag("ball"));
         
         handler.addTag(this, "ball");
     }
