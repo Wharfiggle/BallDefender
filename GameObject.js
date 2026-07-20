@@ -34,6 +34,7 @@ export class handler
     gameObjects = [];
     removeGameObjects = [];
     unshiftGameObjects = [];
+    tagGroups = {};
     constructor(scene, ui, ghostUi, document)
     {
         this.scene = scene;
@@ -48,6 +49,26 @@ export class handler
             copy.scale.setScalar(0);
             scene.add(copy);
         }
+    }
+    addTag(gameObj, str)
+    {
+        if(!gameObj.tags.includes(str))
+            gameObj.tags.push(str);
+        
+        if(!this.tagGroups[str])
+        {
+            this.tagGroups[str] = [gameObj];
+            console.log(this.tagGroups);
+        }
+        else
+            this.tagGroups[str].push(gameObj);
+    }
+    getGroupByTag(str)
+    {
+        if(!!this.tagGroups[str])
+            return this.tagGroups[str];
+        else
+            return [];
     }
     addGameObject(gameObj, under = false)
     {
@@ -81,6 +102,10 @@ export class handler
         for(const rgo of this.removeGameObjects)
         {
             this.removeMesh(rgo.mesh);
+            for(const tag of rgo.tags)
+            {
+                this.tagGroups[tag].filter(e => e != rgo);
+            }
         }
         this.gameObjects = this.gameObjects.filter(e => !this.removeGameObjects.includes(e));
         this.removeGameObjects = [];
@@ -98,6 +123,7 @@ export class gameObject extends EventTarget
     handler = null;
     addedDepth = 0;
     pos = new THREE.Vector3();
+    tags = [];
     constructor(mesh = null, startPos = null, addedDepth = 0)
     {
         super();
@@ -179,7 +205,7 @@ export class paddle extends gameObject
     atomEffect = {
         atoms: [],
         atomsParent: new THREE.Object3D(),
-        numAtoms: 5,
+        numAtoms: 7,
         orbitSpeed: 1.0,
         spinSpeed: 1.0,
         radius: 0.3
@@ -320,7 +346,7 @@ export class paddle extends gameObject
 
         //draw ghosting atoms flying around dot in center
         const ae = this.atomEffect;
-        ae.atomsParent.scale.setScalar(this.dotSizeMod * this.dotSizeMod);
+        ae.atomsParent.scale.setScalar(this.dotSizeMod * this.dotSizeMod / 2 + 0.5);
         for(var i = 0; i < ae.atoms.length; i++)
         {
             //rotate atoms
@@ -338,7 +364,8 @@ export class paddle extends gameObject
             const screenPos = worldToScreen(worldPos, this.camera, this.ui.canvas.width, this.ui.canvas.height);
             this.ghostUi.fillStyle = "white";
             this.ghostUi.beginPath();
-            this.ghostUi.arc(screenPos.x, screenPos.y, this.ui.canvas.height / uiScaleHeight, 0, Math.PI * 2);
+            const size = i < ae.atoms.length / 2 ? 2.0 : 1.0;
+            this.ghostUi.arc(screenPos.x, screenPos.y, size * this.ui.canvas.height / uiScaleHeight, 0, Math.PI * 2);
             this.ghostUi.fill();
         }
 
@@ -606,11 +633,27 @@ export class ball extends gameObject
         camera.getViewSize(camera.position.z - this.addedDepth, viewSize); //populates viewSize with width and height of camera's view z units away
         const spawnOffset = this.radius * 3;
         const spawnPoint = getRandomPointOnRectangle(viewSize.width + spawnOffset, viewSize.height + spawnOffset);
+        this.setPos(new THREE.Vector3(spawnPoint.x, spawnPoint.y, 0));
         //this.cullDistance = viewSize.length();
 
-        this.setPos(new THREE.Vector3(spawnPoint.x, spawnPoint.y, 0));
-
         this.mesh.children[0].rotation.z = Math.PI;
+    }
+    postInit(handler, ui, document)
+    {
+        //check if this would be inside any other ball and move accordingly
+        const ang = Math.atan2(this.pos.y, this.pos.x);
+        for(const ball of handler.getGroupByTag("ball"))
+        {
+            const dist = ball.getPos().sub(this.getPos());
+            if(dist < this.radius + ball.radius)
+            {
+                const newLen = this.pos.length() + dist;
+                this.setPos(new THREE.Vector3(Math.cos(ang) * newLen, Math.sin(ang) * newLen));
+            }
+        }
+        console.log(handler.getGroupByTag("ball"));
+        
+        handler.addTag(this, "ball");
     }
     tick(dt, timems)
     {
