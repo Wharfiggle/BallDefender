@@ -5,6 +5,8 @@ import { paddleTrailMat, meshes } from "./Shaders.js";
 let paddleObj = null;
 let scoreObj = null;
 
+const uiScaleHeight = 1000;
+
 //add shadows to meshes except paddle
 for(const [key, mesh] of Object.entries(meshes))
 {
@@ -313,7 +315,7 @@ export class paddle extends gameObject
         const scoreColor = scoreObj.colorFlash.color;
         this.ui.fillStyle = `rgb(${scoreColor.x}, ${scoreColor.y}, ${scoreColor.z})`;
         this.ui.beginPath();
-	    this.ui.arc(this.ui.canvas.width / 2, this.ui.canvas.height / 2, 5 * this.dotSizeMod, 0, Math.PI * 2);
+	    this.ui.arc(this.ui.canvas.width / 2, this.ui.canvas.height / 2, (5 * this.ui.canvas.height / uiScaleHeight) * this.dotSizeMod, 0, Math.PI * 2);
 	    this.ui.fill();
 
         //draw ghosting atoms flying around dot in center
@@ -336,7 +338,7 @@ export class paddle extends gameObject
             const screenPos = worldToScreen(worldPos, this.camera, this.ui.canvas.width, this.ui.canvas.height);
             this.ghostUi.fillStyle = "white";
             this.ghostUi.beginPath();
-            this.ghostUi.arc(screenPos.x, screenPos.y, 1.0, 0, Math.PI * 2);
+            this.ghostUi.arc(screenPos.x, screenPos.y, this.ui.canvas.height / uiScaleHeight, 0, Math.PI * 2);
             this.ghostUi.fill();
         }
 
@@ -483,7 +485,7 @@ export class scoreKeeper extends gameObject
         }
 
         this.ui.fillStyle = `rgb(${cf.color.x}, ${cf.color.y}, ${cf.color.z})`;
-        this.ui.font = "48px serif";
+        this.ui.font = `${Math.floor(48 * this.ui.canvas.height / uiScaleHeight)}px serif`;
         this.ui.fillText(this.score, 10, 50);
     }
 }
@@ -561,7 +563,7 @@ export class scoreParticle extends gameObject
         const screenPos = worldToScreen(this.getPos(true), this.camera, this.ui.canvas.width, this.ui.canvas.height);
         this.ghostUi.fillStyle = "yellow";
         this.ghostUi.beginPath();
-	    this.ghostUi.arc(screenPos.x, screenPos.y, 2.5, 0, Math.PI * 2);
+	    this.ghostUi.arc(screenPos.x, screenPos.y, 2.5 * this.ui.canvas.height / uiScaleHeight, 0, Math.PI * 2);
 	    this.ghostUi.fill();
     }
 }
