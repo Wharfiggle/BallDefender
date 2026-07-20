@@ -1,6 +1,9 @@
 import * as THREE from "three";
 import { getRandomPointOnRectangle } from "./RandomPointOnRectangle.js";
 import { paddleTrailMat, meshes } from "./Shaders.js";
+import { GLTFLoader } from "jsm/loaders/GLTFLoader.js";
+
+const modelLoader = new GLTFLoader();
 
 let paddleObj = null;
 let scoreObj = null;
@@ -175,19 +178,12 @@ export class gameObject extends EventTarget
 
 export class paddle extends gameObject
 {
-    paddleMesh = meshes.paddle.clone();
+    paddleMesh = null;
     radius = 2.5;
-    radiusStretch = {
-        cursorDist: 0,
-        screenCornerToCenter: 0,
-        initRadius: 0,
-        stretchAmount: 0.0,
-        sizeStretchAmount: 0.0
-    }
     targetAngle = Math.PI / 2;
     maxRotSpeed = Math.PI * 10; //radians per second
     angle = Math.PI / 2;
-    width = null;
+    width = 0.2;
     pointLight = null;
     camera = null;
     dotSizeMod = 1;
@@ -197,7 +193,7 @@ export class paddle extends gameObject
         lastAngle: 0,
         length: 0, //radians
         maxLength: Math.PI / 2,
-        gap: Math.PI / 100, //radians
+        gap: Math.PI / 80, //radians
         lengthReduceSpeed: 8,
     };
     atomEffect = {
@@ -217,11 +213,58 @@ export class paddle extends gameObject
     {
         super(new THREE.Object3D());
 
-        //our mesh acts as the anchor point and the paddleMesh rotates with it but at radius
-        this.paddleMesh.position.set(0, this.radius, 0);
-        this.mesh.add(this.paddleMesh);
+        paddleObj = this;
 
-        this.width = this.paddleMesh.geometry.parameters.height;
+        //load paddle mesh then set up instanced meshes for paddle trail
+        modelLoader.load(
+            "./paddle.glb",
+            function(gltf) //callback for when finished loading
+            {
+                gltf.scene.traverse((child) => {
+                    if(child.isMesh)
+                        paddleObj.paddleMesh = new THREE.Mesh(
+                            child.geometry, 
+                            new THREE.MeshStandardMaterial({ color: "white", transparent: true, depthTest: false }));
+                });
+
+                //paddleObj.paddleMesh = meshes.paddle;
+                paddleObj.paddleMesh.renderOrder = meshes.paddle.renderOrder;
+                
+                //our mesh acts as the anchor point and the paddleMesh rotates with it but at radius
+                paddleObj.paddleMesh.position.set(0, paddleObj.radius, 0);
+                paddleObj.mesh.add(paddleObj.paddleMesh);
+
+                // set up instanced meshes
+                const tr = paddleObj.trail;
+                
+                const maxMeshes = Math.floor(tr.maxLength / tr.gap);
+                console.log("Maximum instanced meshes drawn for paddle trail: " + maxMeshes);
+                tr.ccwMeshes = new THREE.InstancedMesh(paddleObj.paddleMesh.geometry, paddleTrailMat, maxMeshes);
+                tr.ccwMeshes.renderOrder = paddleObj.paddleMesh.renderOrder - 0.5;
+                tr.cwMeshes = tr.ccwMeshes.clone();
+
+                //set instanced mesh transforms
+                const dummy = new THREE.Object3D();
+                dummy.scale.setScalar(0.8);
+                for(let trailDir = -1; trailDir <= 1; trailDir += 2)
+                {
+                    for(let i = 0; i < maxMeshes; i++)
+                    {
+                        const a = tr.gap * (i + 1) * trailDir + Math.PI / 2;
+                        const scale = (maxMeshes - i) / maxMeshes;
+                        dummy.scale.setScalar(scale);
+                        dummy.position.set(Math.cos(a) * paddleObj.radius, Math.sin(a) * paddleObj.radius - paddleObj.paddleMesh.position.y, 0);
+                        dummy.rotation.z = a - Math.PI / 2;
+                        dummy.updateMatrix();
+                        const meshes = trailDir == 1 ? tr.ccwMeshes : tr.cwMeshes;
+                        meshes.setMatrixAt(i, dummy.matrix);
+                    }
+                }
+                paddleObj.paddleMesh.add(tr.ccwMeshes);
+                paddleObj.paddleMesh.add(tr.cwMeshes);
+            }
+        );
+
         this.camera = camera;
 
         //subtle white light from paddle
@@ -261,51 +304,13 @@ export class paddle extends gameObject
 
             atom.position.set(0, ae.atoms[i].radius, 0);
         }
-
-        paddleObj = this;
     }
     postInit(handler, ui, document)
     {
-        // set up instanced meshes
-        const tr = this.trail;
-        
-        const maxMeshes = Math.floor(this.trail.maxLength / this.trail.gap);
-        console.log("Maximum instanced meshes per trail: " + maxMeshes);
-        tr.ccwMeshes = new THREE.InstancedMesh(this.paddleMesh.geometry, paddleTrailMat, maxMeshes);
-        tr.ccwMeshes.renderOrder = this.paddleMesh.renderOrder - 0.5;
-        tr.cwMeshes = tr.ccwMeshes.clone();
-
-        //set instanced mesh transforms
-        const dummy = new THREE.Object3D();
-        dummy.scale.setScalar(0.8);
-        const trailDir = tr.length < 0 ? -1 : 1;
-        for(let trailDir = -1; trailDir <= 1; trailDir += 2)
-        {
-            for(let i = 0; i < maxMeshes; i++)
-            {
-                const a = tr.gap * (i + 1) * trailDir + Math.PI / 2;
-                const scale = (maxMeshes - i) / maxMeshes;
-                dummy.scale.setScalar(scale);
-                dummy.position.set(Math.cos(a) * this.radius, Math.sin(a) * this.radius - this.paddleMesh.position.y, 0);
-                dummy.rotation.z = a - Math.PI / 2;
-                dummy.updateMatrix();
-                const meshes = trailDir == 1 ? tr.ccwMeshes : tr.cwMeshes;
-                meshes.setMatrixAt(i, dummy.matrix);
-            }
-        }
-        this.paddleMesh.add(tr.ccwMeshes);
-        this.paddleMesh.add(tr.cwMeshes);
-
-        //initialize radiusStretch values
-        const rs = this.radiusStretch;
-        rs.screenCornerToCenter = new THREE.Vector2(ui.canvas.width, ui.canvas.height).length();
-        rs.initRadius = this.radius;
-
         //respond to mouseEvent fired from game.js and rotate with mouse direction
         document.addEventListener("mouseEvent", event => {
             const e = event.detail;
             this.targetAngle = -Math.atan2(e.pos.y - ui.canvas.height / 2, e.pos.x - ui.canvas.width / 2);
-            this.radiusStretch.cursorDist = e.coord.length();
             this.autoRotate.timeWithoutInput = 0;
         });
     }
@@ -379,13 +384,6 @@ export class paddle extends gameObject
         if(ar.timeWithoutInput > ar.time)
             this.targetAngle = this.angle - ar.speed * dt;
 
-        
-        //stretch paddle radius based on where user's cursor is
-        const rs = this.radiusStretch;
-        this.radius = rs.initRadius - rs.stretchAmount + rs.cursorDist * rs.stretchAmount * 2;
-        this.paddleMesh.position.y = this.radius;
-        this.paddleMesh.scale.y = 1.0 - rs.cursorDist * rs.sizeStretchAmount;
-        this.paddleMesh.scale.x = 1.0 + rs.cursorDist * rs.sizeStretchAmount;
 
         // draw trail of instanced meshes following paddle based on prior rotations
         
@@ -416,16 +414,19 @@ export class paddle extends gameObject
         tr.length = Math.min(tr.maxLength, Math.max(-tr.maxLength, tr.length)); //clamp length
 
         //derrive mesh count from trail length
-        const meshCount = Math.floor(Math.abs(tr.length) / tr.gap);
-        if(tr.length > 0)
+        if(this.paddleMesh)
         {
-            tr.ccwMeshes.count = meshCount;
-            tr.cwMeshes.count = 0;
-        }
-        else
-        {
-            tr.ccwMeshes.count = 0;
-            tr.cwMeshes.count = meshCount;
+            const meshCount = Math.floor(Math.abs(tr.length) / tr.gap);
+            if(tr.length > 0)
+            {
+                tr.ccwMeshes.count = meshCount;
+                tr.cwMeshes.count = 0;
+            }
+            else
+            {
+                tr.ccwMeshes.count = 0;
+                tr.cwMeshes.count = meshCount;
+            }
         }
 
         tr.lastAngle = this.angle;
