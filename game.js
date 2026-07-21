@@ -37,7 +37,7 @@ scene.background = new THREE.Color(0x000000);
 camera.updateMatrixWorld();
 
 //set up lighting
-const hemiLight = new THREE.HemisphereLight(0x808080, 0x404040);
+const hemiLight = new THREE.HemisphereLight(0x418040, 0x402020);
 scene.add(hemiLight);
 const dirLight = new THREE.DirectionalLight(0xcccccc, 2);
 dirLight.position.set(-1, 1, 1);

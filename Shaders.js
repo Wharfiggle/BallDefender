@@ -146,10 +146,11 @@ export function applyGermyPattern(material)
         ).replace( //main pattern calculation
             "#include <opaque_fragment>", `#include <opaque_fragment>
             vec3 coords = vWorldPosition * 0.1;
-            coords.z += uTime / 10.0;
+            coords.z += uTime / 35.0;
             float pattern = wave(coords + noise(coords));
-            float alpha = 1.0 - pow(length(vWorldPosition), 2.0) / 1000.0;
-            pattern += length(vWorldPosition) / 1000.0;
+            float borderProximity = length(vec2(vWorldPosition.x, vWorldPosition.y * 2.0));
+            float alpha = 1.0 - pow(borderProximity, 2.0) / 1000.0;
+            pattern += 0.2 - borderProximity / 100.0;
             gl_FragColor = vec4(pattern * 0.75, pattern, pattern * 0.75, alpha);
             return;`
         );
