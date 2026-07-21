@@ -202,7 +202,7 @@ export class paddle extends gameObject
         numAtoms: 7,
         orbitSpeed: 1.0,
         spinSpeed: 1.0,
-        radius: 0.3
+        radius: 0.5
     };
     autoRotate = {
         speed: Math.PI / 5, //radians per second
@@ -328,7 +328,7 @@ export class paddle extends gameObject
             if(cf.targetColor == cf.addScoreColor) //growing
                 this.dotSizeMod = 1 + Math.sqrt(cf.lerp);
             else if(cf.targetColor == cf.subtractScoreColor) //shrinking
-                this.dotSizeMod = 1 - cf.lerp * 0.5;
+                this.dotSizeMod = 1 - cf.lerp * 0.75;
             else if(cf.targetColor == cf.defaultColor) //back to normal
             {
                 if(this.dotSizeMod > 1) //back to normal after growing
@@ -344,7 +344,7 @@ export class paddle extends gameObject
         const scoreColor = scoreObj.colorFlash.color;
         this.ui.fillStyle = `rgb(${scoreColor.x}, ${scoreColor.y}, ${scoreColor.z})`;
         this.ui.beginPath();
-	    this.ui.arc(this.ui.canvas.width / 2, this.ui.canvas.height / 2, (5 * this.ui.canvas.height / uiScaleHeight) * this.dotSizeMod, 0, Math.PI * 2);
+	    this.ui.arc(this.ui.canvas.width / 2, this.ui.canvas.height / 2, (10.0 * this.ui.canvas.height / uiScaleHeight) * this.dotSizeMod, 0, Math.PI * 2);
 	    this.ui.fill();
 
         // draw ghosting atoms flying around dot in center
@@ -440,7 +440,7 @@ export class scoreKeeper extends gameObject
     colorFlash = {
         defaultColor: new THREE.Vector3(255, 255, 255),
         addScoreColor: new THREE.Vector3(255, 255, 0),
-        subtractScoreColor: new THREE.Vector3(100, 100, 100),
+        subtractScoreColor: new THREE.Vector3(50, 50, 25),
         color: null,
         startColor: null,
         targetColor: null,
@@ -516,8 +516,9 @@ export class scoreKeeper extends gameObject
         }
 
         this.ui.fillStyle = `rgb(${cf.color.x}, ${cf.color.y}, ${cf.color.z})`;
-        this.ui.font = `${Math.floor(48 * this.ui.canvas.height / uiScaleHeight)}px serif`;
-        this.ui.fillText(this.score, 10 * this.ui.canvas.height / uiScaleHeight, 50 * this.ui.canvas.height / uiScaleHeight);
+        this.ui.font = `${Math.floor(64 * this.ui.canvas.height / uiScaleHeight)}px monospace`;
+        this.ui.textAlign = "center";
+        this.ui.fillText(this.score, this.ui.canvas.width / 2, 100 * this.ui.canvas.height / uiScaleHeight);
     }
 }
 
@@ -594,8 +595,35 @@ export class scoreParticle extends gameObject
         const screenPos = worldToScreen(this.getPos(true), this.camera, this.ui.canvas.width, this.ui.canvas.height);
         this.ghostUi.fillStyle = "yellow";
         this.ghostUi.beginPath();
-	    this.ghostUi.arc(screenPos.x, screenPos.y, 2.5 * this.ui.canvas.height / uiScaleHeight, 0, Math.PI * 2);
+	    this.ghostUi.arc(screenPos.x, screenPos.y, 3.5 * this.ui.canvas.height / uiScaleHeight, 0, Math.PI * 2);
 	    this.ghostUi.fill();
+    }
+}
+
+export class background extends gameObject
+{
+    camera = null;
+    constructor(camera)
+    {
+        super(meshes.background, new THREE.Vector3(0, 0, 0), -10);
+
+        this.camera = camera;
+
+        this.resizeToWindowDimensions(camera);
+    }
+    postInit(handler, ui, document)
+    {
+        document.addEventListener("windowResize", event => {
+            const e = event.detail;
+            this.resizeToWindowDimensions(this.camera);
+        });
+    }
+    resizeToWindowDimensions(camera)
+    {
+        let viewSize = new THREE.Vector2();
+        camera.getViewSize(camera.position.z - this.addedDepth, viewSize);
+        this.mesh.scale.x = viewSize.x;
+        this.mesh.scale.y = viewSize.y;
     }
 }
 
@@ -610,6 +638,7 @@ export class ball extends gameObject
     radius = null;
     closeToCenter = false;
     deflected = false;
+    deflectPoint = new THREE.Vector3();
     deflectShrinkSpeed = 15;
     shrinking = false;
     deflectThreshold = 0.825;
@@ -687,8 +716,7 @@ export class ball extends gameObject
             }
 
             //set pos touching edge of ball to origin with new scale
-            if(!this.deflected)
-                this.setPos(this.getPos().normalize().multiplyScalar(this.radius * this.mesh.scale.x));
+            this.setPos(this.deflectPoint.clone().add(this.getPos().normalize().multiplyScalar(this.radius * this.mesh.scale.x)));
 
             return;
         }
@@ -704,6 +732,8 @@ export class ball extends gameObject
             {
                 this.deflected = true;
                 this.shrinking = true;
+                const moveDir = this.getMoveVector(1, 1).normalize();
+                this.deflectPoint = this.getPos().add(moveDir.multiplyScalar(this.radius));
                 //this.speed = -this.speed;
                 //scoreObj.addScore(1, this.getPos().normalize().multiplyScalar((pos.length() - this.radius)));
             }

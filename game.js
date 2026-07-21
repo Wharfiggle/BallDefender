@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import * as GameObject from "./GameObject.js";
+import { meshes } from "./Shaders.js";
 
 //set up three renderer
 let w = window.innerWidth;
@@ -99,6 +100,9 @@ const ballSpawnWeightSum = ballSpawnWeights.reduce((sum, e) => sum + e.weight, 0
 //always start with a bertha on screen
 handler.addGameObject(new GameObject.bertha(camera));
 
+//add background
+handler.addGameObject(new GameObject.background(camera));
+
 //tick
 let lastTime = 0;
 function tick(t = 0)
@@ -140,7 +144,7 @@ function tick(t = 0)
     //only partially clear previously drawn ui frame for ghost ui
     ghostUi.save();
     ghostUi.globalCompositeOperation = "destination-out";
-    ghostUi.fillStyle = "rgba(0, 0, 0, 0.2)";
+    ghostUi.fillStyle = "rgba(0, 0, 0, 0.25)";
     ghostUi.fillRect(0, 0, w, h);
     ghostUi.restore();
     ghostUi.globalCompositeOperation = "source-over";
@@ -163,5 +167,12 @@ function handleWindowResize()
     ghostCanvas.height = h;
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+
+    document.dispatchEvent( new CustomEvent("windowResize"), { 
+        detail: { 
+            newSize: new THREE.Vector2(w, h),
+            camera: camera
+        } 
+    });
 }
 window.addEventListener("resize", handleWindowResize, false);

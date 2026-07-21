@@ -114,6 +114,51 @@ function establishOnBeforeCompileChain(material, features) //features: array of 
     return material;
 }
 
+export function applyGermyPattern(material)
+{
+    if(!material.userData.onBeforeCompileList)
+        material = establishOnBeforeCompileChain(material, ["uTime"]);
+
+    material.userData.onBeforeCompileList.push((shader) => {
+        shader.vertexShader = shader.vertexShader.replace( //varyings
+            "#include <common>", `#include <common>
+            varying vec2 vUv;
+            varying vec3 vWorldPosition;`
+        ).replace( //pass uv
+            "#include <uv_vertex>", `#include <uv_vertex>
+            vUv = uv;`
+        ).replace( //pass worldPosition
+            '#include <begin_vertex>', `#include <begin_vertex>
+            vWorldPosition = vec3(modelMatrix * vec4(transformed, 1.0));`
+        );
+
+        shader.fragmentShader = shader.fragmentShader.replace(
+            "#include <common>", `#include <common>
+            varying vec2 vUv;
+            varying vec3 vWorldPosition;`
+        ).replace( //functions
+            "void main() {",
+            shaderFunctions.smoothMod + `
+            ` + shaderFunctions.perlin3dNoise + `
+            float wave(vec3 position)
+            { return smoothMod(length(position) / 5.0, 0.09, 2.0); }
+            void main() {`
+        ).replace( //main pattern calculation
+            "#include <opaque_fragment>", `#include <opaque_fragment>
+            vec3 coords = vWorldPosition * 0.1;
+            coords.z += uTime / 10.0;
+            float pattern = wave(coords + noise(coords));
+            float alpha = 1.0 - pow(length(vWorldPosition), 2.0) / 1000.0;
+            pattern += length(vWorldPosition) / 1000.0;
+            gl_FragColor = vec4(pattern * 0.75, pattern, pattern * 0.75, alpha);
+            return;`
+        );
+    });
+
+    material.userData.cacheKey += "background";
+    return material;
+}
+
 //make lumpy animated organelle looking thing
 export function applyOrganelle(args, material)
 {
@@ -124,41 +169,30 @@ export function applyOrganelle(args, material)
         material = establishOnBeforeCompileChain(material, ["uTime"]);
 
     material.userData.onBeforeCompileList.push((shader) => {
-        //pass uvs from vertex shader to fragment shader
-        shader.vertexShader = shader.vertexShader.replace(
-            "#include <uv_pars_vertex>", `#include <uv_pars_vertex>
-            varying vec2 vUv;
+        shader.vertexShader = shader.vertexShader.replace( //varyings
+            "#include <common>", `#include <common>
             varying float vDisplacement;`
-        ).replace(
-            "#include <uv_vertex>", `#include <uv_vertex>
-            vUv = uv;`
-        );
-
-        shader.vertexShader = shader.vertexShader.replace(
+        ).replace( //functions
             "void main() {",
             shaderFunctions.smoothMod + `
             ` + shaderFunctions.fit + `
             ` + shaderFunctions.perlin3dNoise + `
             float wave(vec3 position)
             { return fit(smoothMod(position.y * ${density}, 1.0, 1.5), 0.1, 0.6, 0.0, 1.0); }
-
             void main() {`
-        ).replace(
-            "#include <normal_vertex>", `#include <normal_vertex>
+        ).replace( //main calculations
+            "#include <begin_vertex>", `#include <begin_vertex>
             vec3 coords = vNormal;
             coords.y += (uTime + length(modelMatrix[3].xyz)) / 2.0;
-            vec3 noisePattern = vec3(noise(coords));
-            vDisplacement = wave(noisePattern);`
-        ).replace(
-            "#include <begin_vertex>", `#include <begin_vertex>
+            vDisplacement = wave(vec3(noise(coords)));
             transformed *= vDisplacement;`
         );
 
-        shader.fragmentShader = shader.fragmentShader.replace(
+        shader.fragmentShader = shader.fragmentShader.replace( //varyings
             '#include <common>', `#include <common>
             varying vec3 vMyPosition;
             varying float vDisplacement;`
-        ).replace(
+        ).replace( //make valleys darker
             "#include <opaque_fragment>", `#include <opaque_fragment>
             gl_FragColor.rgb *= pow(vDisplacement, ${colorIntensity});`
         );
@@ -219,11 +253,16 @@ export const paddleTrailMat = new THREE.MeshStandardMaterial({
 //set up meshes
 const standardBallMesh = new THREE.IcosahedronGeometry(0.65, 3); 
 export const meshes = {
+    background: new THREE.Mesh(
+        new THREE.PlaneGeometry(1, 1),
+        applyGermyPattern(
+            new THREE.MeshStandardMaterial( { color: "blue" }))
+    ),
     organelleBertha: new THREE.Mesh(
         new THREE.IcosahedronGeometry(1.0, 20),
         applyVerticeWobble({intensity: "2.0", speed: "5.0"},
             applyOrganelle({density: "3.0", colorIntensity: "3.0"},
-                new THREE.MeshStandardMaterial({ color: "yellow", side:THREE.FrontSide })))
+                new THREE.MeshStandardMaterial({ color: "yellow" })))
     ),
     bertha: new THREE.Mesh(
         new THREE.IcosahedronGeometry(1.5, 6),
