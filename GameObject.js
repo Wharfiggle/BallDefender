@@ -207,7 +207,8 @@ export class paddle extends gameObject
     autoRotate = {
         speed: Math.PI / 5, //radians per second
         time: 5, //seconds
-        timeWithoutInput: 4
+        timeWithoutInput: 4,
+        trailMeshCount: 0
     }
     constructor(camera)
     {
@@ -416,7 +417,16 @@ export class paddle extends gameObject
         //derrive mesh count from trail length
         if(this.paddleMesh)
         {
-            const meshCount = Math.floor(Math.abs(tr.length) / tr.gap);
+            let meshCount = Math.floor(Math.abs(tr.length) / tr.gap);
+            //during autoRotate, make sure paddle trail doesn't go back down once it's gone up to prevent trail flickering
+            if(ar.timeWithoutInput >= ar.time)
+            {
+                meshCount = Math.max(meshCount, ar.trailMeshCount);
+                ar.trailMeshCount = meshCount;
+            }
+            else
+                ar.trailMeshCount = 0;
+
             if(tr.length > 0)
             {
                 tr.ccwMeshes.count = meshCount;
