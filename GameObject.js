@@ -205,7 +205,11 @@ export class paddle extends gameObject
         radius: 0.5
     };
     autoRotate = {
-        speed: Math.PI / 5, //radians per second
+        defaultSpeed: Math.PI / 5, //radians per second
+        maxSpeed: Math.PI * 6,
+        speed: 0,
+        hitAddedSpeed: Math.PI / 7,
+        decceleration: Math.PI / 3,
         time: 5, //seconds
         timeWithoutInput: 4,
         trailMeshCount: 0
@@ -215,6 +219,9 @@ export class paddle extends gameObject
         super(new THREE.Object3D());
 
         paddleObj = this;
+
+        const ar = this.autoRotate;
+        ar.speed = ar.defaultSpeed;
 
         //load paddle mesh then set up instanced meshes for paddle trail
         modelLoader.load(
@@ -382,8 +389,13 @@ export class paddle extends gameObject
         //auto rotate after idling long enough
         const ar = this.autoRotate;
         ar.timeWithoutInput += dt;
+        ar.speed -= (ar.decceleration + (ar.decceleration * (ar.speed / ar.maxSpeed))) * dt;
+        ar.speed = Math.max(ar.defaultSpeed, Math.min(ar.maxSpeed, ar.speed)); //clamp
+
         if(ar.timeWithoutInput > ar.time)
             this.targetAngle = this.angle - ar.speed * dt;
+        else
+            ar.speed = ar.defaultSpeed;
 
 
         // draw trail of instanced meshes following paddle based on prior rotations
@@ -419,13 +431,13 @@ export class paddle extends gameObject
         {
             let meshCount = Math.floor(Math.abs(tr.length) / tr.gap);
             //during autoRotate, make sure paddle trail doesn't go back down once it's gone up to prevent trail flickering
-            if(ar.timeWithoutInput >= ar.time)
+            /*if(ar.timeWithoutInput >= ar.time)
             {
                 meshCount = Math.max(meshCount, ar.trailMeshCount);
                 ar.trailMeshCount = meshCount;
             }
             else
-                ar.trailMeshCount = 0;
+                ar.trailMeshCount = 0;*/
 
             if(tr.length > 0)
             {
@@ -440,6 +452,12 @@ export class paddle extends gameObject
         }
 
         tr.lastAngle = this.angle;
+    }
+    idleAddSpeed()
+    {
+        const ar = this.autoRotate;
+        if(ar.timeWithoutInput > ar.time)
+            ar.speed += ar.hitAddedSpeed;
     }
 }
 
@@ -498,6 +516,7 @@ export class scoreKeeper extends gameObject
             this.handler.addGameObject(particle, true);
             particle.addEventListener("particleDeath", () => { 
                 this.score += 1;
+                paddleObj.idleAddSpeed();
                 this.flashScoreColor(this.colorFlash.addScoreColor, false, 5);
                 localStorage.setItem("score", this.score); //save new score in local storage
             }, { once: true });
