@@ -205,11 +205,12 @@ export class paddle extends gameObject
         radius: 0.5
     };
     autoRotate = {
-        defaultSpeed: Math.PI / 5, //radians per second
+        active: false,
+        defaultSpeed: Math.PI / 4, //radians per second
         maxSpeed: Math.PI * 6,
         speed: 0,
-        hitAddedSpeed: Math.PI / 7,
-        decceleration: Math.PI / 3,
+        hitAddedSpeed: Math.PI / 6,
+        decceleration: Math.PI / 2,
         time: 5, //seconds
         timeWithoutInput: 4,
         trailMeshCount: 0
@@ -389,13 +390,20 @@ export class paddle extends gameObject
         //auto rotate after idling long enough
         const ar = this.autoRotate;
         ar.timeWithoutInput += dt;
+        ar.active = ar.timeWithoutInput > ar.time;
         ar.speed -= (ar.decceleration + (ar.decceleration * (ar.speed / ar.maxSpeed))) * dt;
         ar.speed = Math.max(ar.defaultSpeed, Math.min(ar.maxSpeed, ar.speed)); //clamp
-
-        if(ar.timeWithoutInput > ar.time)
+        const af = scoreObj.alphaFade;
+        if(ar.active)
+        {
             this.targetAngle = this.angle - ar.speed * dt;
+            af.targetAlpha = af.lowAlpha;
+        }
         else
+        {
             ar.speed = ar.defaultSpeed;
+            af.targetAlpha = af.defaultAlpha;
+        }
 
 
         // draw trail of instanced meshes following paddle based on prior rotations
@@ -456,7 +464,7 @@ export class paddle extends gameObject
     idleAddSpeed()
     {
         const ar = this.autoRotate;
-        if(ar.timeWithoutInput > ar.time)
+        if(ar.active)
             ar.speed += ar.hitAddedSpeed;
     }
 }
@@ -465,6 +473,13 @@ export class scoreKeeper extends gameObject
 {
     score = 0;
     camera = null;
+    alphaFade = {
+        alpha: 1,
+        defaultAlpha: 1,
+        lowAlpha: 0.1,
+        targetAlpha: 1,
+        lerpSpeed: 5
+    };
     colorFlash = {
         defaultColor: new THREE.Vector3(255, 255, 255),
         addScoreColor: new THREE.Vector3(255, 255, 0),
@@ -474,13 +489,15 @@ export class scoreKeeper extends gameObject
         targetColor: null,
         lerp: 1,
         speed: 5,
-    }
+    };
     constructor(camera)
     {
         super();
         scoreObj = this;
 
         this.camera = camera;
+
+        this.alphaFade.alpha = this.alphaFade.defaultAlpha;
 
         this.colorFlash.color = this.colorFlash.defaultColor.clone();
         this.colorFlash.startColor = this.colorFlash.defaultColor.clone();
@@ -544,10 +561,18 @@ export class scoreKeeper extends gameObject
                 this.flashScoreColor(cf.defaultColor, true, cf.speed);
         }
 
-        this.ui.fillStyle = `rgb(${cf.color.x}, ${cf.color.y}, ${cf.color.z})`;
+        const af = this.alphaFade;
+        const lower = af.targetAlpha < af.alpha;
+        af.alpha += dt * (lower ? -1 : 1);
+        af.alpha = lower ? Math.max(af.targetAlpha, af.alpha) : Math.min(af.targetAlpha, af.alpha); //dont overshoot
+
+        this.ui.fillStyle = paddleObj.autoRotate.active ? "white" : `rgb(${cf.color.x}, ${cf.color.y}, ${cf.color.z})`;
         this.ui.font = `${Math.floor(64 * this.ui.canvas.height / uiScaleHeight)}px monospace`;
         this.ui.textAlign = "center";
+        this.ui.save();
+        this.ui.globalAlpha = af.alpha;
         this.ui.fillText(this.score, this.ui.canvas.width / 2, 100 * this.ui.canvas.height / uiScaleHeight);
+        this.ui.restore();
     }
 }
 
