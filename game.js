@@ -12,6 +12,7 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setSize(w, h);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setPixelRatio(window.devicePixelRatio);
 
 //set up ui canvas
 const canvas = document.getElementById("ui");

@@ -6,8 +6,15 @@
         <title>Ball Defender</title>
         <style>
             body { margin: 0; }
-            #container { position: relative; width: 100vw; height: 100vh; }
+            #container { position: relative; width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
             #three, #ui, #ghostui { position: absolute; top: 0; left: 0; }
+            #loadingimg { width: 200px; height: 200px; animation: spin-loop 3s linear infinite; }
+            @keyframes spin-loop {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+            }
+            h2 { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -100%);
+                font-family: monospace; color: white; font-size: 20px; }
         </style>
         <script type="importmap">
             {
@@ -18,8 +25,12 @@
             }
         </script>
     </head>
-    <body>
+    <body style="background-color: black;">
         <div id="container">
+            <div>
+                <h2>Loading...</h2>
+                <img src="./paddle.png" id="loadingimg"/>
+            </div>
             <canvas id="three" touch-action="none"></canvas>
             <canvas id="ui" touch-action="none"></canvas>
             <canvas id="ghostui" touch-action="none"></canvas>
