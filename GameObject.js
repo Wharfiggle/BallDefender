@@ -319,7 +319,7 @@ export class paddle extends gameObject
         //respond to mouseEvent fired from game.js and rotate with mouse direction
         document.addEventListener("mouseEvent", event => {
             const e = event.detail;
-            this.targetAngle = Math.atan2(e.coord.x, e.coord.y) - Math.PI / 2;
+            this.targetAngle = Math.atan2(e.pos.x - ui.width / 2, e.pos.y - ui.height / 2) - Math.PI / 2;
             this.autoRotate.timeWithoutInput = 0;
         });
     }
