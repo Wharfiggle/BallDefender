@@ -2,6 +2,8 @@ import * as THREE from "three";
 import * as GameObject from "./GameObject.js";
 import { meshes } from "./Shaders.js";
 
+const dpr = window.devicePixelRatio || 1;
+
 //set up three renderer
 let w = window.innerWidth;
 let h = window.innerHeight;
@@ -9,25 +11,16 @@ const renderer = new THREE.WebGLRenderer({
     canvas: document.getElementById("three"),
     antialias: true
 });
-renderer.setSize(w, h);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setPixelRatio(dpr);
 
 //set up ui canvas
 const canvas = document.getElementById("ui");
-canvas.style.width = w;
-canvas.style.height = h;
-canvas.width = w * window.devicePixelRatio;
-canvas.height = h * window.devicePixelRatio;
 const ui = canvas.getContext("2d");
 
 //extra ui canvas with ghosting effect instead of normal drawing
 const ghostCanvas = document.getElementById("ghostui");
-ghostCanvas.style.width = w;
-ghostCanvas.style.height = h;
-ghostCanvas.width = w * window.devicePixelRatio;
-ghostCanvas.height = h * window.devicePixelRatio;
 const ghostUi = ghostCanvas.getContext("2d");
 
 //set up scene
@@ -40,6 +33,8 @@ camera.position.z = 20;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 camera.updateMatrixWorld();
+
+handleWindowResize();
 
 //set up lighting
 const hemiLight = new THREE.HemisphereLight(0x608060, 0x608060);
@@ -82,10 +77,10 @@ function dispatchMouseEvent(event)
 {
     //convert to normalized device coordinates (NDC) (-1 to 1)
     const coordX = (event.clientX / w) * 2 - 1;
-    const coordY = 1 - (event.clientY / h) * 2;
+    const coordY = (event.clientY / h) * 2 - 1;
     document.dispatchEvent( new CustomEvent("mouseEvent", { 
         detail: {
-            pos: new THREE.Vector2(event.clientX, event.clientY),
+            pos: new THREE.Vector2(event.clientX * dpr, event.clientY * dpr),
             coord: new THREE.Vector2(coordX, coordY)
         }}) );
 }
@@ -166,14 +161,14 @@ function handleWindowResize()
     w = window.innerWidth;
     h = window.innerHeight;
     renderer.setSize(w, h);
-    canvas.style.width = w;
-    canvas.style.height = h;
-    canvas.width = w * window.devicePixelRatio;
-    canvas.height = h * window.devicePixelRatio;
-    ghostCanvas.style.width = w;
-    ghostCanvas.style.height = h;
-    ghostCanvas.width = w * window.devicePixelRatio;
-    ghostCanvas.height = h * window.devicePixelRatio;
+    canvas.style.width = w + "px";
+    canvas.style.height = h + "px";
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    ghostCanvas.style.width = w + "px";
+    ghostCanvas.style.height = h + "px";
+    ghostCanvas.width = w * dpr;
+    ghostCanvas.height = h * dpr;
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
 
