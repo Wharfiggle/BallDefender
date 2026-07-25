@@ -2,7 +2,10 @@ import * as THREE from "three";
 import * as GameObject from "./GameObject.js";
 import { meshes } from "./Shaders.js";
 
-const dpr = window.devicePixelRatio || 1;
+let dprSet = true;
+let dpr = window.devicePixelRatio || 1;
+if(!window.devicePixelRatio)
+    dprSet = false;
 
 //set up three renderer
 let w = window.innerWidth;
@@ -115,6 +118,12 @@ function tick(t = 0)
     //dont process this frame if it's is after a large accumulation of skipped frames
     if(dt > 1.0)
         return;
+
+    if(!dprSet && !!window.devicePixelRatio)
+    {
+        dpr = window.devicePixelRatio;
+        handleWindowResize();
+    }
 
     //once timer is up, spawn a new ball of a random type with weighted chances
     ballSpawnTimer -= dt;
