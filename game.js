@@ -165,14 +165,14 @@ function handleWindowResize()
     canvas.style.height = h + "px";
     canvas.width = w * dpr;
     canvas.height = h * dpr;
-    ui.scale(dpr, dpr);
+    ui.setTransform(dpr, 0, 0, dpr, 0, 0);
     ui.width = w;
     ui.height = h;
     ghostCanvas.style.width = w + "px";
     ghostCanvas.style.height = h + "px";
     ghostCanvas.width = w * dpr;
     ghostCanvas.height = h * dpr;
-    ghostUi.scale(dpr, dpr);
+    ghostUi.setTransform(dpr, 0, 0, dpr, 0, 0);
     ghostUi.width = w;
     ghostUi.height = h;
     camera.aspect = w / h;
