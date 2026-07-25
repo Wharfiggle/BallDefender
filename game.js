@@ -16,14 +16,18 @@ renderer.setPixelRatio(window.devicePixelRatio);
 
 //set up ui canvas
 const canvas = document.getElementById("ui");
-canvas.width = w;
-canvas.height = h;
+canvas.style.width = w;
+canvas.style.height = h;
+canvas.width = w * window.devicePixelRatio;
+canvas.height = h * window.devicePixelRatio;
 const ui = canvas.getContext("2d");
 
 //extra ui canvas with ghosting effect instead of normal drawing
 const ghostCanvas = document.getElementById("ghostui");
-ghostCanvas.width = w;
-ghostCanvas.height = h;
+ghostCanvas.style.width = w;
+ghostCanvas.style.height = h;
+ghostCanvas.width = w * window.devicePixelRatio;
+ghostCanvas.height = h * window.devicePixelRatio;
 const ghostUi = ghostCanvas.getContext("2d");
 
 //set up scene
@@ -162,10 +166,14 @@ function handleWindowResize()
     w = window.innerWidth;
     h = window.innerHeight;
     renderer.setSize(w, h);
-    canvas.width = w;
-    canvas.height = h;
-    ghostCanvas.width = w;
-    ghostCanvas.height = h;
+    canvas.style.width = w;
+    canvas.style.height = h;
+    canvas.width = w * window.devicePixelRatio;
+    canvas.height = h * window.devicePixelRatio;
+    ghostCanvas.style.width = w;
+    ghostCanvas.style.height = h;
+    ghostCanvas.width = w * window.devicePixelRatio;
+    ghostCanvas.height = h * window.devicePixelRatio;
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
 
