@@ -139,13 +139,13 @@ function tick(t = 0)
     }
 
     //clear previously drawn ui frame
-    ui.clearRect(0, 0, w, h);
+    ui.clearRect(0, 0, w * dpr, h * dpr);
     
     //only partially clear previously drawn ui frame for ghost ui
     ghostUi.save();
     ghostUi.globalCompositeOperation = "destination-out";
     ghostUi.fillStyle = "rgba(0, 0, 0, 0.25)";
-    ghostUi.fillRect(0, 0, w, h);
+    ghostUi.fillRect(0, 0, w * dpr, h * dpr);
     ghostUi.restore();
     ghostUi.globalCompositeOperation = "source-over";
     
@@ -165,10 +165,16 @@ function handleWindowResize()
     canvas.style.height = h + "px";
     canvas.width = w * dpr;
     canvas.height = h * dpr;
+    ui.scale(dpr, dpr);
+    ui.width = w;
+    ui.height = h;
     ghostCanvas.style.width = w + "px";
     ghostCanvas.style.height = h + "px";
     ghostCanvas.width = w * dpr;
     ghostCanvas.height = h * dpr;
+    ghostUi.scale(dpr, dpr);
+    ghostUi.width = w;
+    ghostUi.height = h;
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
 

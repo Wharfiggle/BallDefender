@@ -193,7 +193,7 @@ export class paddle extends gameObject
         lastAngle: 0,
         length: 0, //radians
         maxLength: Math.PI / 2,
-        gap: Math.PI / 80, //radians
+        gap: Math.PI / 120, //radians
         lengthReduceSpeed: 8,
     };
     atomEffect = {
@@ -353,7 +353,7 @@ export class paddle extends gameObject
         const scoreColor = scoreObj.colorFlash.color;
         this.ui.fillStyle = `rgb(${scoreColor.x}, ${scoreColor.y}, ${scoreColor.z})`;
         this.ui.beginPath();
-	    this.ui.arc(this.ui.canvas.width / 2, this.ui.canvas.height / 2, (10.0 * this.ui.canvas.height / uiScaleHeight) * this.dotSizeMod, 0, Math.PI * 2);
+	    this.ui.arc(this.ui.width / 2, this.ui.height / 2, (10.0 * this.ui.height / uiScaleHeight) * this.dotSizeMod, 0, Math.PI * 2);
 	    this.ui.fill();
 
         // draw ghosting atoms flying around dot in center
@@ -378,11 +378,11 @@ export class paddle extends gameObject
             //draw 2d circle in ghost ui
             const worldPos = new THREE.Vector3();
             atom.atom.getWorldPosition(worldPos);
-            const screenPos = worldToScreen(worldPos, this.camera, this.ui.canvas.width, this.ui.canvas.height);
+            const screenPos = worldToScreen(worldPos, this.camera, this.ui.width, this.ui.height);
             this.ghostUi.fillStyle = "white";
             this.ghostUi.beginPath();
             const size = i < ae.atoms.length / 2 ? 2.0 : 1.0;
-            this.ghostUi.arc(screenPos.x, screenPos.y, size * this.ui.canvas.height / uiScaleHeight, 0, Math.PI * 2);
+            this.ghostUi.arc(screenPos.x, screenPos.y, size * this.ui.height / uiScaleHeight, 0, Math.PI * 2);
             this.ghostUi.fill();
         }
 
@@ -567,11 +567,11 @@ export class scoreKeeper extends gameObject
         af.alpha = lower ? Math.max(af.targetAlpha, af.alpha) : Math.min(af.targetAlpha, af.alpha); //dont overshoot
 
         this.ui.fillStyle = paddleObj.autoRotate.active ? "white" : `rgb(${cf.color.x}, ${cf.color.y}, ${cf.color.z})`;
-        this.ui.font = `${Math.floor(64 * this.ui.canvas.height / uiScaleHeight)}px monospace`;
+        this.ui.font = `${Math.floor(64 * this.ui.height / uiScaleHeight)}px monospace`;
         this.ui.textAlign = "center";
         this.ui.save();
         this.ui.globalAlpha = af.alpha;
-        this.ui.fillText(this.score, this.ui.canvas.width / 2, 100 * this.ui.canvas.height / uiScaleHeight);
+        this.ui.fillText(this.score, this.ui.width / 2, 100 * this.ui.height / uiScaleHeight);
         this.ui.restore();
     }
 }
@@ -646,10 +646,10 @@ export class scoreParticle extends gameObject
             }
         }
 
-        const screenPos = worldToScreen(this.getPos(true), this.camera, this.ui.canvas.width, this.ui.canvas.height);
+        const screenPos = worldToScreen(this.getPos(true), this.camera, this.ui.width, this.ui.height);
         this.ghostUi.fillStyle = "yellow";
         this.ghostUi.beginPath();
-	    this.ghostUi.arc(screenPos.x, screenPos.y, 3.5 * this.ui.canvas.height / uiScaleHeight, 0, Math.PI * 2);
+	    this.ghostUi.arc(screenPos.x, screenPos.y, 3.5 * this.ui.height / uiScaleHeight, 0, Math.PI * 2);
 	    this.ghostUi.fill();
     }
 }
