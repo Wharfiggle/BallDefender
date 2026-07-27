@@ -2,10 +2,7 @@ import * as THREE from "three";
 import * as GameObject from "./GameObject.js";
 import { meshes } from "./Shaders.js";
 
-let dprSet = true;
 let dpr = window.devicePixelRatio || 1;
-if(!window.devicePixelRatio)
-    dprSet = false;
 
 //set up three renderer
 let w = window.innerWidth;
@@ -119,9 +116,10 @@ function tick(t = 0)
     if(dt > 1.0)
         return;
 
-    if(!dprSet && !!window.devicePixelRatio)
+    if(dpr != window.devicePixelRatio)
     {
         dpr = window.devicePixelRatio;
+        renderer.setPixelRatio(dpr);
         handleWindowResize();
     }
 

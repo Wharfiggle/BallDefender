@@ -334,7 +334,7 @@ export class paddle extends gameObject
         const cf = scoreObj.colorFlash;
         if(cf.lerp < 1)
         {
-            if(cf.targetColor == cf.addScoreColor) //growing
+            if(cf.targetColor == cf.addScoreColor || cf.targetColor == cf.highScoreColor) //growing
                 this.dotSizeMod = 1 + Math.sqrt(cf.lerp);
             else if(cf.targetColor == cf.subtractScoreColor) //shrinking
                 this.dotSizeMod = 1 - cf.lerp * 0.75;
@@ -393,16 +393,18 @@ export class paddle extends gameObject
         ar.active = ar.timeWithoutInput > ar.time;
         ar.speed -= (ar.decceleration + (ar.decceleration * (ar.speed / ar.maxSpeed))) * dt;
         ar.speed = Math.max(ar.defaultSpeed, Math.min(ar.maxSpeed, ar.speed)); //clamp
-        const af = scoreObj.alphaFade;
+        const st = scoreObj.scoreTransition;
         if(ar.active)
         {
             this.targetAngle = this.angle - ar.speed * dt;
-            af.targetAlpha = af.lowAlpha;
+            st.target = 1;
+            scoreObj.score = 0;
         }
         else
         {
             ar.speed = ar.defaultSpeed;
-            af.targetAlpha = af.defaultAlpha;
+            st.target = 0;
+            scoreObj.scoreIdle = 0;
         }
 
 
@@ -472,23 +474,29 @@ export class paddle extends gameObject
 export class scoreKeeper extends gameObject
 {
     score = 0;
+    scoreIdle = 0;
+    highScore = 0;
+    highScoreIdle = 0;
     camera = null;
-    alphaFade = {
-        alpha: 1,
-        defaultAlpha: 1,
-        lowAlpha: 0.1,
-        targetAlpha: 1,
+    scoreTransition = {
+        t: 0,
+        target: 0,
+        idleAlpha: 0.2,
+        manualAlpha: 1,
+        posOffset: -30,
         lerpSpeed: 5
-    };
+    }
     colorFlash = {
         defaultColor: new THREE.Vector3(255, 255, 255),
         addScoreColor: new THREE.Vector3(255, 255, 0),
+        highScoreColor: new THREE.Vector3(100, 255, 100),
         subtractScoreColor: new THREE.Vector3(50, 50, 25),
         color: null,
         startColor: null,
         targetColor: null,
         lerp: 1,
         speed: 5,
+        includeHighScore: false
     };
     constructor(camera)
     {
@@ -497,22 +505,21 @@ export class scoreKeeper extends gameObject
 
         this.camera = camera;
 
-        this.alphaFade.alpha = this.alphaFade.defaultAlpha;
-
         this.colorFlash.color = this.colorFlash.defaultColor.clone();
         this.colorFlash.startColor = this.colorFlash.defaultColor.clone();
         this.colorFlash.targetColor = this.colorFlash.defaultColor.clone();
 
         //load score from local storage
-        const storedScore = Number(localStorage.getItem("score"));
-        this.score = !!storedScore ? storedScore : 0;
+        this.highScore = Number(localStorage.getItem("highScore")) || 0;
+        this.highScoreIdle = Number(localStorage.getItem("highScoreIdle")) || 0;
     }
-    flashScoreColor(vec3, fadeIn = false, speed = 5)
+    flashScoreColor(vec3, fadeIn = false, speed = 5, includeHighScore = false)
     {
         const cf = this.colorFlash;
 
         //cf.targetColor = vec3;
         //cf.startColor = this.colorFlash.color.clone();
+        cf.includeHighScore = includeHighScore;
         cf.targetColor = vec3;
         cf.startColor = fadeIn ? cf.color.clone() : vec3;
 
@@ -531,19 +538,42 @@ export class scoreKeeper extends gameObject
             const particle = new scoreParticle(this.camera, pos, num);
             particle.stayTime += i * 0.1;
             this.handler.addGameObject(particle, true);
-            particle.addEventListener("particleDeath", () => { 
-                this.score += 1;
-                paddleObj.idleAddSpeed();
-                this.flashScoreColor(this.colorFlash.addScoreColor, false, 5);
-                localStorage.setItem("score", this.score); //save new score in local storage
+            particle.addEventListener("particleDeath", () => {
+                let highScoreAffected = false;
+                if(!paddleObj.autoRotate.active)
+                {
+                    this.score += 1;
+                    highScoreAffected = this.score > this.highScore;
+                    if(highScoreAffected)
+                    {
+                        this.highScore = this.score;
+                        localStorage.setItem("highScore", this.highScore);
+                    }
+                }
+                else
+                {
+                    this.scoreIdle += 1;
+                    highScoreAffected = this.scoreIdle > this.highScoreIdle;
+                    paddleObj.idleAddSpeed();
+                    if(highScoreAffected)
+                    {
+                        this.highScoreIdle = this.scoreIdle;
+                        localStorage.setItem("highScoreIdle", this.highScoreIdle);
+                    }
+                }
+                this.flashScoreColor(highScoreAffected ? this.colorFlash.highScoreColor : this.colorFlash.addScoreColor, false, 5, highScoreAffected);
             }, { once: true });
         }
     }
-    subtractScore(num, pos)
+    subtractScore()
     {
-        this.score = Math.max(0, this.score - num);
-        this.flashScoreColor(this.colorFlash.subtractScoreColor, false, 10 * Math.pow(0.6, num - 1));
-        localStorage.setItem("score", this.score); //save new score in local storage
+        if(!paddleObj.autoRotate.active)
+        {
+            this.score = 0;
+            this.flashScoreColor(this.colorFlash.subtractScoreColor, false, 10);
+        }
+        else
+            this.scoreIdle = 0;
     }
     tick(dt, timems)
     {
@@ -558,20 +588,55 @@ export class scoreKeeper extends gameObject
 
             //fade back to default color after reaching target color
             if(cf.lerp == 1 && cf.targetColor != cf.defaultColor)
-                this.flashScoreColor(cf.defaultColor, true, cf.speed);
+                this.flashScoreColor(cf.defaultColor, true, cf.speed, cf.includeHighScore);
         }
 
-        const af = this.alphaFade;
-        const lower = af.targetAlpha < af.alpha;
-        af.alpha += dt * (lower ? -1 : 1);
-        af.alpha = lower ? Math.max(af.targetAlpha, af.alpha) : Math.min(af.targetAlpha, af.alpha); //dont overshoot
+        const st = this.scoreTransition;
+        const lower = st.target < st.t;
+        st.t += dt * (lower ? -1 : 1) * st.lerpSpeed;
+        st.t = lower ? Math.max(st.target, st.t) : Math.min(st.target, st.t); //dont overshoot
 
-        this.ui.fillStyle = paddleObj.autoRotate.active ? "white" : `rgb(${cf.color.x}, ${cf.color.y}, ${cf.color.z})`;
-        this.ui.font = `${Math.floor(64 * this.ui.height / uiScaleHeight)}px monospace`;
-        this.ui.textAlign = "center";
+        const us = this.ui.height / uiScaleHeight;
+        const color = `rgb(${cf.color.x}, ${cf.color.y}, ${cf.color.z})`;
+        this.ui.font = `${Math.floor(64 * us)}px monospace`;
+        this.ui.textBaseline = "bottom";
         this.ui.save();
-        this.ui.globalAlpha = af.alpha;
-        this.ui.fillText(this.score, this.ui.width / 2, 100 * this.ui.height / uiScaleHeight);
+
+        //center slash
+        this.ui.fillStyle = "white";
+        this.ui.globalAlpha = Math.max(st.idleAlpha, Math.min(st.manualAlpha, 1.0 - st.t));
+        this.ui.textAlign = "center";
+        this.ui.fillText("/", this.ui.width / 2, 120 * us);
+        
+        //manual score
+        const manualOffset = st.posOffset * Math.pow(st.t, 2);
+        const manualAlpha = st.manualAlpha * (1.0 - st.t);
+        this.ui.globalAlpha = manualAlpha;
+        this.ui.fillStyle = color;
+        this.ui.textAlign = "right";
+        this.ui.fillText(this.score, this.ui.width / 2 - 40 * us, (120 + manualOffset) * us);
+        this.ui.fillStyle = cf.includeHighScore ? color : "white";
+        this.ui.textAlign = "left";
+        this.ui.fillText(this.highScore, this.ui.width / 2 + 40 * us, (120 + manualOffset) * us);
+        
+        //idle score
+        const idleOffset = st.posOffset * (1.0 - Math.pow(st.t, 2));
+        const idleAlpha = st.idleAlpha * st.t;
+        this.ui.globalAlpha = idleAlpha;
+        this.ui.fillStyle = (cf.targetColor.equals(cf.highScoreColor) || cf.startColor.equals(cf.highScoreColor)) ? color : "white";
+        this.ui.textAlign = "right";
+        this.ui.fillText(this.scoreIdle, this.ui.width / 2 - 40 * us, (120 + idleOffset) * us);
+        this.ui.textAlign = "left";
+        this.ui.fillText(this.highScoreIdle, this.ui.width / 2 + 40 * us, (120 + idleOffset) * us);
+
+        //score labels
+        this.ui.textBaseline = "top";
+        this.ui.font = `${Math.floor(24 * us)}px monospace`;
+        this.ui.globalAlpha = manualAlpha / 2;
+        this.ui.fillText("High Score", this.ui.width / 2 + 40 * us, (120 + manualOffset) * us);
+        this.ui.globalAlpha = idleAlpha / 2;
+        this.ui.fillText("High Score (Idle)", this.ui.width / 2 + 40 * us, (120 + idleOffset) * us);
+
         this.ui.restore();
     }
 }
@@ -686,7 +751,7 @@ export class background extends gameObject
 
 export class ball extends gameObject
 {
-    damage = 1;
+    value = 1;
     speed = 5;
     camera = null;
     radius = null;
@@ -764,9 +829,9 @@ export class ball extends gameObject
             {
                 this.handler.removeGameObject(this);
                 if(this.deflected)
-                    scoreObj.addScore(this.damage, this.getPos(true));
+                    scoreObj.addScore(this.value, this.getPos(true));
                 else
-                    scoreObj.subtractScore(this.damage, pos);
+                    scoreObj.subtractScore();
             }
 
             //set pos touching edge of ball to origin with new scale
@@ -786,10 +851,11 @@ export class ball extends gameObject
             {
                 this.deflected = true;
                 this.shrinking = true;
-                const moveDir = this.getMoveVector(1, 1).normalize();
-                this.deflectPoint = this.getPos().add(moveDir.multiplyScalar(this.radius));
+                const pos = this.getPos();
+                this.deflectPoint = pos.setLength(pos.length() - this.radius);
                 //this.speed = -this.speed;
                 //scoreObj.addScore(1, this.getPos().normalize().multiplyScalar((pos.length() - this.radius)));
+                return;
             }
         }
         else if(dist < Math.abs(minDist)) //ensure closeToCenter flag is toggled even if frames are skipped or paddleObj is missing
@@ -830,7 +896,7 @@ export class bob extends ball
     bobTime = 0;
     bobSpeed = 6;
     bobStrength = 0.3;
-    damage = 2;
+    value = 2;
     constructor(camera)
     {
         super(camera, meshes.bob);
@@ -853,7 +919,7 @@ export class bob extends ball
 export class orbiter extends ball
 {
     orbitSpeed = 25;
-    damage = 2;
+    value = 2;
     constructor(camera)
     {
         super(camera, meshes.orbiter);
@@ -873,7 +939,7 @@ export class bertha extends ball
 {
     speed = 1.5;
     centerSpeed = 1.5;
-    damage = 5;
+    value = 5;
     deflectThreshold = 0.675;
     constructor(camera)
     {
