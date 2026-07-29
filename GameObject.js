@@ -183,7 +183,7 @@ export class paddle extends gameObject
     targetAngle = Math.PI / 2;
     maxRotSpeed = Math.PI * 10; //radians per second
     angle = Math.PI / 2;
-    width = 0.2;
+    width = 0.25;
     pointLight = null;
     camera = null;
     dotSizeMod = 1;
@@ -611,31 +611,43 @@ export class scoreKeeper extends gameObject
         //manual score
         const manualOffset = st.posOffset * Math.pow(st.t, 2);
         const manualAlpha = st.manualAlpha * (1.0 - st.t);
-        this.ui.globalAlpha = manualAlpha;
-        this.ui.fillStyle = color;
-        this.ui.textAlign = "right";
-        this.ui.fillText(this.score, this.ui.width / 2 - 40 * us, (120 + manualOffset) * us);
-        this.ui.fillStyle = cf.includeHighScore ? color : "white";
-        this.ui.textAlign = "left";
-        this.ui.fillText(this.highScore, this.ui.width / 2 + 40 * us, (120 + manualOffset) * us);
+        if(manualAlpha >= 0.01)
+        {
+            this.ui.globalAlpha = manualAlpha;
+            this.ui.fillStyle = color;
+            this.ui.textAlign = "right";
+            this.ui.fillText(this.score, this.ui.width / 2 - 40 * us, (120 + manualOffset) * us);
+            this.ui.fillStyle = cf.includeHighScore ? color : "white";
+            this.ui.textAlign = "left";
+            this.ui.fillText(this.highScore, this.ui.width / 2 + 40 * us, (120 + manualOffset) * us);
+        }
         
         //idle score
         const idleOffset = st.posOffset * (1.0 - Math.pow(st.t, 2));
         const idleAlpha = st.idleAlpha * st.t;
-        this.ui.globalAlpha = idleAlpha;
-        this.ui.fillStyle = (cf.targetColor.equals(cf.highScoreColor) || cf.startColor.equals(cf.highScoreColor)) ? color : "white";
-        this.ui.textAlign = "right";
-        this.ui.fillText(this.scoreIdle, this.ui.width / 2 - 40 * us, (120 + idleOffset) * us);
-        this.ui.textAlign = "left";
-        this.ui.fillText(this.highScoreIdle, this.ui.width / 2 + 40 * us, (120 + idleOffset) * us);
+        if(idleAlpha >= 0.01)
+        {
+            this.ui.globalAlpha = idleAlpha;
+            this.ui.fillStyle = (cf.targetColor.equals(cf.highScoreColor) || cf.startColor.equals(cf.highScoreColor)) ? color : "white";
+            this.ui.textAlign = "right";
+            this.ui.fillText(this.scoreIdle, this.ui.width / 2 - 40 * us, (120 + idleOffset) * us);
+            this.ui.textAlign = "left";
+            this.ui.fillText(this.highScoreIdle, this.ui.width / 2 + 40 * us, (120 + idleOffset) * us);
+        }
 
         //score labels
         this.ui.textBaseline = "top";
         this.ui.font = `${Math.floor(24 * us)}px monospace`;
-        this.ui.globalAlpha = manualAlpha / 2;
-        this.ui.fillText("High Score", this.ui.width / 2 + 40 * us, (120 + manualOffset) * us);
-        this.ui.globalAlpha = idleAlpha / 2;
-        this.ui.fillText("High Score (Idle)", this.ui.width / 2 + 40 * us, (120 + idleOffset) * us);
+        if(manualAlpha >= 0.02)
+        {
+            this.ui.globalAlpha = manualAlpha / 2;
+            this.ui.fillText("High Score", this.ui.width / 2 + 40 * us, (120 + manualOffset) * us);
+        }
+        if(idleAlpha >= 0.02)
+        {
+            this.ui.globalAlpha = idleAlpha / 2;
+            this.ui.fillText("High Score (Idle)", this.ui.width / 2 + 40 * us, (120 + idleOffset) * us);
+        }
 
         this.ui.restore();
     }
@@ -841,7 +853,7 @@ export class ball extends gameObject
         }
 
         //if ball is within hitting distance and alligned with paddle's angle, deflect
-        const minDist = paddleObj?.radius + paddleObj?.width - this.radius;
+        const minDist = paddleObj?.radius - paddleObj?.width - this.radius;
         const maxDist = paddleObj?.radius + paddleObj?.width + this.radius;
         if(!this.deflected && dist >= minDist && dist <= maxDist)
         {
