@@ -38,12 +38,11 @@ export class handler
     removeGameObjects = [];
     unshiftGameObjects = [];
     tagGroups = {};
-    constructor(scene, ui, ghostUi, document)
+    constructor(scene, ui, ghostUi)
     {
         this.scene = scene;
         this.ui = ui;
         this.ghostUi = ghostUi;
-        this.document = document;
 
         //preload meshes and keep in memory to prevent lag spikes on spawns
         for(const [key, mesh] of Object.entries(meshes))
@@ -75,8 +74,7 @@ export class handler
         gameObj.handler = this;
         gameObj.ui = this.ui;
         gameObj.ghostUi = this.ghostUi;
-        gameObj.document = this.document;
-        gameObj.postInit(this, this.ui, this.document);
+        gameObj.postInit(this, this.ui);
         if(gameObj.mesh)
             this.scene.add(gameObj.mesh);
         
@@ -92,11 +90,11 @@ export class handler
             return;
         this.scene.remove(mesh);
     }
-    tick(dt, timems)
+    tick(dt, time)
     {
         for(const go of this.gameObjects)
         {
-            go.tick(dt, timems);
+            go.tick(dt, time);
         }
 
         for(const rgo of this.removeGameObjects)
@@ -138,8 +136,8 @@ export class gameObject extends EventTarget
             startPos = new THREE.Vector3();
         this.setPos(startPos);
     }
-    postInit(handler, ui, document){}
-    tick(dt, timems)
+    postInit(handler, ui){}
+    tick(dt, time)
     {
         //automatically set any uTime uniforms on materials of meshes
 
@@ -151,7 +149,7 @@ export class gameObject extends EventTarget
             if(!uTime)
                 uTime = mesh.material?.uniforms?.uTime;
             if(!!uTime)
-                uTime.value = timems;
+                uTime.value = time;
         });
     }
     setPos(vector3)
@@ -314,7 +312,7 @@ export class paddle extends gameObject
             atom.position.set(0, ae.atoms[i].radius, 0);
         }
     }
-    postInit(handler, ui, document)
+    postInit(handler, ui)
     {
         //respond to mouseEvent fired from game.js and rotate with mouse direction
         document.addEventListener("mouseEvent", event => {
@@ -323,9 +321,9 @@ export class paddle extends gameObject
             this.autoRotate.timeWithoutInput = 0;
         });
     }
-    tick(dt, timems)
+    tick(dt, time)
     {
-        super.tick(dt, timems);
+        super.tick(dt, time);
 
 
         // dot in center
@@ -440,14 +438,6 @@ export class paddle extends gameObject
         if(this.paddleMesh)
         {
             let meshCount = Math.floor(Math.abs(tr.length) / tr.gap);
-            //during autoRotate, make sure paddle trail doesn't go back down once it's gone up to prevent trail flickering
-            /*if(ar.timeWithoutInput >= ar.time)
-            {
-                meshCount = Math.max(meshCount, ar.trailMeshCount);
-                ar.trailMeshCount = meshCount;
-            }
-            else
-                ar.trailMeshCount = 0;*/
 
             if(tr.length > 0)
             {
@@ -517,8 +507,6 @@ export class scoreKeeper extends gameObject
     {
         const cf = this.colorFlash;
 
-        //cf.targetColor = vec3;
-        //cf.startColor = this.colorFlash.color.clone();
         cf.includeHighScore = includeHighScore;
         cf.targetColor = vec3;
         cf.startColor = fadeIn ? cf.color.clone() : vec3;
@@ -575,9 +563,9 @@ export class scoreKeeper extends gameObject
         else
             this.scoreIdle = 0;
     }
-    tick(dt, timems)
+    tick(dt, time)
     {
-        super.tick(dt, timems);
+        super.tick(dt, time);
 
         const cf = this.colorFlash;
         if(cf.lerp < 1)
@@ -677,12 +665,10 @@ export class scoreParticle extends gameObject
 
         const rang = Math.random() * Math.PI * 2;
         this.gravity = new THREE.Vector3(Math.cos(rang) * 9.8, Math.sin(rang) * 9.8);
-
-        //this.target = new THREE.Vector3(this.maxOffset * (Math.random() * 2 - 1), this.maxOffset * (Math.random() * 2 - 1));
     }
-    tick(dt, timems)
+    tick(dt, time)
     {
-        super.tick(dt, timems);
+        super.tick(dt, time);
 
         this.timer += dt;
         if(this.timer < this.stayTime) //staying
@@ -742,18 +728,18 @@ export class background extends gameObject
 
         this.resizeToWindowDimensions(camera);
     }
-    postInit(handler, ui, document)
+    postInit(handler, ui)
     {
-        document.addEventListener("windowResize", event => {
+        /*document.addEventListener("windowResize", event => {
             const e = event.detail;
             this.resizeToWindowDimensions(this.camera);
-        });
+        });*/
     }
     resizeToWindowDimensions(camera)
     {
         let viewSize = new THREE.Vector2();
         camera.getViewSize(camera.position.z - this.addedDepth, viewSize);
-        this.mesh.scale.x = viewSize.x;
+        this.mesh.scale.x = viewSize.y * 2;
         this.mesh.scale.y = viewSize.y;
     }
 }
@@ -775,8 +761,6 @@ export class ball extends gameObject
     deflectThreshold = 0.825;
     centerLerp = 0;
     centerSpeed = 5;
-    //pointLight = null;
-    //cullDistance = null;
     constructor(camera, mesh = null, addedDepth = 0)
     {
         super(!mesh ? meshes.ball : mesh, new THREE.Vector3(), addedDepth);
@@ -789,20 +773,17 @@ export class ball extends gameObject
         console.assert(!!camera);
         console.assert(!!this.radius);
 
-        //this.pointLight = new THREE.PointLight(this.mesh.material.color, 15, this.radius + 5);
-        //this.mesh.add(this.pointLight);
-
         //get spawn point on edge of screen at the origin
         let viewSize = new THREE.Vector2();
-        camera.getViewSize(camera.position.z - this.addedDepth, viewSize); //populates viewSize with width and height of camera's view z units away
-        const spawnOffset = this.radius * 3;
+        camera.getViewSize(camera.position.length() - this.addedDepth, viewSize); //populates viewSize with width and height of camera's view z units away
+        const spawnOffset = this.radius * 10;
+        console.log(camera.rotation.x);
         const spawnPoint = getRandomPointOnRectangle(viewSize.width + spawnOffset, viewSize.height + spawnOffset);
         this.setPos(new THREE.Vector3(spawnPoint.x, spawnPoint.y, 0));
-        //this.cullDistance = viewSize.length();
 
         this.mesh.children[0].rotation.z = Math.PI;
     }
-    postInit(handler, ui, document)
+    postInit(handler, ui)
     {
         //check if this would be inside any other ball and move accordingly
         const ang = Math.atan2(this.pos.y, this.pos.x);
@@ -821,9 +802,9 @@ export class ball extends gameObject
         
         handler.addTag(this, "ball");
     }
-    tick(dt, timems)
+    tick(dt, time)
     {
-        super.tick(dt, timems);
+        super.tick(dt, time);
 
         const pos = this.getPos();
         const dist = pos.length();
@@ -865,8 +846,6 @@ export class ball extends gameObject
                 this.shrinking = true;
                 const pos = this.getPos();
                 this.deflectPoint = pos.setLength(pos.length() - this.radius);
-                //this.speed = -this.speed;
-                //scoreObj.addScore(1, this.getPos().normalize().multiplyScalar((pos.length() - this.radius)));
                 return;
             }
         }
@@ -893,10 +872,6 @@ export class ball extends gameObject
             const moveVec = this.getMoveVector(dt, this.speed);
             this.addPos(moveVec);
             this.mesh.rotation.z = Math.atan2(moveVec.y, moveVec.x) + Math.PI / 1.5;
-
-            //cull once far enough away if deflected
-            /*if(this.deflected && dist > this.cullDistance)
-                this.handler.removeGameObject(this);*/
         }
     }
     getMoveVector(dt, speed) { return this.getCenterMoveVector(dt, speed); }

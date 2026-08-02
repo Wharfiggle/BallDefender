@@ -27,7 +27,7 @@ const ghostUi = ghostCanvas.getContext("2d");
 const fov = 50;
 const aspect = w / h;
 const near = 0.1;
-const far = 30;
+const far = 40;
 const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
 camera.position.z = 20;
 const scene = new THREE.Scene();
@@ -52,7 +52,7 @@ pointLightBack.castShadow = true;
 scene.add(pointLightBack);
 
 //game objects
-const handler = new GameObject.handler(scene, ui, ghostUi, document);
+const handler = new GameObject.handler(scene, ui, ghostUi);
 handler.addGameObject(new GameObject.paddle(camera));
 handler.addGameObject(new GameObject.scoreKeeper(camera));
 
@@ -110,7 +110,10 @@ function tick(t = 0)
     requestAnimationFrame(tick);
     let dt = (t - lastTime) / 1000;
     lastTime = t;
-    let timems = t / 1000;
+    let time = t / 1000;
+
+    //camera.position.set(0, Math.sin(time) * 7.5, 20);
+    //camera.lookAt(0, 0, 0);
 
     //dont process this frame if it's is after a large accumulation of skipped frames
     if(dt > 1.0)
@@ -156,7 +159,7 @@ function tick(t = 0)
     ghostUi.restore();
     ghostUi.globalCompositeOperation = "source-over";
     
-    handler.tick(dt, timems);
+    handler.tick(dt, time);
 
     renderer.render(scene, camera);
 }
