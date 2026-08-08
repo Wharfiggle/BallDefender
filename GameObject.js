@@ -275,8 +275,8 @@ export class paddle extends gameObject
         this.camera = camera;
 
         //subtle white light from paddle
-        this.pointLight = new THREE.PointLight(0xffffff, 15, 15);
-        this.pointLight.position.set(0, this.radius + this.width, 0);
+        this.pointLight = new THREE.PointLight(0xffffff, 15, 25);
+        this.pointLight.position.set(0, this.radius + 0.5, 0);
         this.pointLight.castShadow = true;
         this.mesh.add(this.pointLight);
 

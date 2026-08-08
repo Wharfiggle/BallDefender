@@ -252,7 +252,9 @@ export const paddleTrailMat = new THREE.MeshStandardMaterial({
 });
 
 //set up meshes
-const standardBallMesh = new THREE.IcosahedronGeometry(0.65, 3); 
+const standardBallMesh = new THREE.IcosahedronGeometry(0.65, 3);
+const rough = 0.6;
+const metal = 0.2; 
 export const meshes = {
     background: new THREE.Mesh(
         new THREE.PlaneGeometry(1, 1),
@@ -263,37 +265,37 @@ export const meshes = {
         new THREE.IcosahedronGeometry(1.0, 20),
         applyVerticeWobble({intensity: "2.0", speed: "5.0"},
             applyOrganelle({density: "3.0", colorIntensity: "3.0"},
-                new THREE.MeshStandardMaterial({ color: "yellow" })))
+                new THREE.MeshStandardMaterial({ color: "yellow", roughness: rough, metalness: metal })))
     ),
     bertha: new THREE.Mesh(
         new THREE.IcosahedronGeometry(1.5, 6),
         applyMarbleFresnel(
             applyVerticeWobble({intensity: "2.0", speed: "5.0"},
-                new THREE.MeshStandardMaterial({ color: "red" })))
+                new THREE.MeshStandardMaterial({ color: "red", roughness: rough, metalness: metal })))
     ),
     organelle: new THREE.Mesh(
         new THREE.IcosahedronGeometry(0.5, 5),
         applyVerticeWobble({intensity: "2.0"},
             applyOrganelle({density: "1.5", colorIntensity: "5.0"},
-                new THREE.MeshStandardMaterial({ color: "yellow" })))
+                new THREE.MeshStandardMaterial({ color: "yellow", roughness: rough, metalness: metal })))
     ),
     ball: new THREE.Mesh(
         standardBallMesh,
         applyMarbleFresnel(
             applyVerticeWobble({intensity: "2.0"},
-                new THREE.MeshStandardMaterial({ color: "purple" })))
+                new THREE.MeshStandardMaterial({ color: "purple", roughness: rough, metalness: metal })))
     ),
     bob: new THREE.Mesh(
         standardBallMesh,
         applyMarbleFresnel(
             applyVerticeWobble({intensity: "2.0"},
-                new THREE.MeshStandardMaterial({ color: "green" })))
+                new THREE.MeshStandardMaterial({ color: "green", roughness: rough, metalness: metal })))
     ),
     orbiter: new THREE.Mesh(
         standardBallMesh,
         applyMarbleFresnel(
             applyVerticeWobble({intensity: "2.0"},
-                new THREE.MeshStandardMaterial({ color: "navy" })))
+                new THREE.MeshStandardMaterial({ color: "navy", roughness: rough, metalness: metal })))
     ),
     paddle: new THREE.Mesh(
         new THREE.BoxGeometry(2.0, 0.2, 2.8),
