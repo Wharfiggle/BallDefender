@@ -777,7 +777,6 @@ export class ball extends gameObject
         let viewSize = new THREE.Vector2();
         camera.getViewSize(camera.position.length() - this.addedDepth, viewSize); //populates viewSize with width and height of camera's view z units away
         const spawnOffset = this.radius * 10;
-        console.log(camera.rotation.x);
         const spawnPoint = getRandomPointOnRectangle(viewSize.width + spawnOffset, viewSize.height + spawnOffset);
         this.setPos(new THREE.Vector3(spawnPoint.x, spawnPoint.y, 0));
 

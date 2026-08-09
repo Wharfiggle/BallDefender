@@ -114,19 +114,17 @@ function establishOnBeforeCompileChain(material, features) //features: array of 
     return material;
 }
 
-export function applyGermyPattern(material)
+export function applyGermyPattern(args, material)
 {
+    const colorMod = args.colorMod ? args.colorMod : [ "0.75", "1.0", "0.75" ];
+
     if(!material.userData.onBeforeCompileList)
         material = establishOnBeforeCompileChain(material, ["uTime"]);
 
     material.userData.onBeforeCompileList.push((shader) => {
         shader.vertexShader = shader.vertexShader.replace( //varyings
             "#include <common>", `#include <common>
-            varying vec2 vUv;
             varying vec3 vWorldPosition;`
-        ).replace( //pass uv
-            "#include <uv_vertex>", `#include <uv_vertex>
-            vUv = uv;`
         ).replace( //pass worldPosition
             '#include <begin_vertex>', `#include <begin_vertex>
             vWorldPosition = vec3(modelMatrix * vec4(transformed, 1.0));`
@@ -134,7 +132,6 @@ export function applyGermyPattern(material)
 
         shader.fragmentShader = shader.fragmentShader.replace(
             "#include <common>", `#include <common>
-            varying vec2 vUv;
             varying vec3 vWorldPosition;`
         ).replace( //functions
             "void main() {",
@@ -151,7 +148,7 @@ export function applyGermyPattern(material)
             float borderProximity = length(vec2(vWorldPosition.x, vWorldPosition.y * 2.0));
             float alpha = 1.0 - pow(borderProximity, 2.0) / 1000.0;
             pattern += 0.2 - borderProximity / 100.0;
-            gl_FragColor = vec4(pattern * 0.75, pattern, pattern * 0.75, alpha);
+            gl_FragColor = vec4(pattern * ${colorMod[0]}, pattern * ${colorMod[1]}, pattern * ${colorMod[2]}, alpha);
             return;`
         );
     });
@@ -253,19 +250,19 @@ export const paddleTrailMat = new THREE.MeshStandardMaterial({
 
 //set up meshes
 const standardBallMesh = new THREE.IcosahedronGeometry(0.65, 3);
-const rough = 0.6;
+const rough = 0.5;
 const metal = 0.2; 
 export const meshes = {
     background: new THREE.Mesh(
         new THREE.PlaneGeometry(1, 1),
-        applyGermyPattern(
-            new THREE.MeshStandardMaterial( { color: "blue" }))
+        applyGermyPattern({colorMod: ["0.75", "1.0", "0.75"]},
+            new THREE.MeshStandardMaterial())
     ),
     organelleBertha: new THREE.Mesh(
         new THREE.IcosahedronGeometry(1.0, 20),
         applyVerticeWobble({intensity: "2.0", speed: "5.0"},
             applyOrganelle({density: "3.0", colorIntensity: "3.0"},
-                new THREE.MeshStandardMaterial({ color: "yellow", roughness: rough, metalness: metal })))
+                new THREE.MeshStandardMaterial({ color: "yellow" })))
     ),
     bertha: new THREE.Mesh(
         new THREE.IcosahedronGeometry(1.5, 6),
@@ -277,7 +274,7 @@ export const meshes = {
         new THREE.IcosahedronGeometry(0.5, 5),
         applyVerticeWobble({intensity: "2.0"},
             applyOrganelle({density: "1.5", colorIntensity: "5.0"},
-                new THREE.MeshStandardMaterial({ color: "yellow", roughness: rough, metalness: metal })))
+                new THREE.MeshStandardMaterial({ color: "yellow" })))
     ),
     ball: new THREE.Mesh(
         standardBallMesh,
