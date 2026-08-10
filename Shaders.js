@@ -240,75 +240,82 @@ export function applyMarbleFresnel(material)
     return material;
 }
 
-//slightly transparent white material
-export const paddleTrailMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.05,
-    depthTest: false
-});
-
 //set up meshes
-const standardBallMesh = new THREE.IcosahedronGeometry(0.65, 3);
-const rough = 0.5;
-const metal = 0.2; 
-export const meshes = {
-    background: new THREE.Mesh(
-        new THREE.PlaneGeometry(1, 1),
-        applyGermyPattern({colorMod: ["0.75", "1.0", "0.75"]},
-            new THREE.MeshStandardMaterial())
-    ),
-    organelleBertha: new THREE.Mesh(
-        new THREE.IcosahedronGeometry(1.0, 20),
-        applyVerticeWobble({intensity: "2.0", speed: "5.0"},
-            applyOrganelle({density: "3.0", colorIntensity: "3.0"},
-                new THREE.MeshStandardMaterial({ color: "yellow" })))
-    ),
-    bertha: new THREE.Mesh(
-        new THREE.IcosahedronGeometry(1.5, 6),
-        applyMarbleFresnel(
-            applyVerticeWobble({intensity: "2.0", speed: "5.0"},
-                new THREE.MeshStandardMaterial({ color: "red", roughness: rough, metalness: metal })))
-    ),
-    organelle: new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.5, 5),
-        applyVerticeWobble({intensity: "2.0"},
-            applyOrganelle({density: "1.5", colorIntensity: "5.0"},
-                new THREE.MeshStandardMaterial({ color: "yellow" })))
-    ),
-    ball: new THREE.Mesh(
-        standardBallMesh,
-        applyMarbleFresnel(
-            applyVerticeWobble({intensity: "2.0"},
-                new THREE.MeshStandardMaterial({ color: "purple", roughness: rough, metalness: metal })))
-    ),
-    bob: new THREE.Mesh(
-        standardBallMesh,
-        applyMarbleFresnel(
-            applyVerticeWobble({intensity: "2.0"},
-                new THREE.MeshStandardMaterial({ color: "green", roughness: rough, metalness: metal })))
-    ),
-    orbiter: new THREE.Mesh(
-        standardBallMesh,
-        applyMarbleFresnel(
-            applyVerticeWobble({intensity: "2.0"},
-                new THREE.MeshStandardMaterial({ color: "navy", roughness: rough, metalness: metal })))
-    ),
-    paddle: new THREE.Mesh(
-        new THREE.BoxGeometry(2.0, 0.2, 2.8),
-        new THREE.MeshStandardMaterial({ color: "white" })
-    )
-}
-
-for(const [index, [key, mesh]] of Object.entries(meshes).entries())
+export function getMeshes(args)
 {
-    meshes[key].material.transparent = true;
-    if(!key.includes("organelle"))
-        meshes[key].material.depthTest = false;
-    meshes[key].renderOrder = index;
-}
+    const standardBallMesh = new THREE.IcosahedronGeometry(0.65, 3);
+    const rough = 1.0;
+    const metal = 0.0; 
+    const meshes = {
+        background: new THREE.Mesh(
+            new THREE.PlaneGeometry(1, 1),
+            applyGermyPattern({colorMod: args.bgColorMod ? args.bgColorMod.split(',') : ["0.75", "1.0", "0.75"]},
+                new THREE.MeshStandardMaterial())
+        ),
+        organelleBertha: new THREE.Mesh(
+            new THREE.IcosahedronGeometry(1.0, 20),
+            applyVerticeWobble({intensity: "2.0", speed: "5.0"},
+                applyOrganelle({density: "3.0", colorIntensity: "3.0"},
+                    new THREE.MeshStandardMaterial({ color: args.organelle ? args.organelle : "yellow" })))
+        ),
+        bertha: new THREE.Mesh(
+            new THREE.IcosahedronGeometry(1.5, 6),
+            applyMarbleFresnel(
+                applyVerticeWobble({intensity: "2.0", speed: "5.0"},
+                    new THREE.MeshStandardMaterial({ color: args.bertha ? args.bertha : "red", roughness: rough, metalness: metal })))
+        ),
+        organelle: new THREE.Mesh(
+            new THREE.IcosahedronGeometry(0.5, 5),
+            applyVerticeWobble({intensity: "2.0"},
+                applyOrganelle({density: "1.5", colorIntensity: "5.0"},
+                    new THREE.MeshStandardMaterial({ color: args.organelle ? args.organelle : "yellow" })))
+        ),
+        ball: new THREE.Mesh(
+            standardBallMesh,
+            applyMarbleFresnel(
+                applyVerticeWobble({intensity: "2.0"},
+                    new THREE.MeshStandardMaterial({ color: args.ball ? args.ball : "purple", roughness: rough, metalness: metal })))
+        ),
+        bob: new THREE.Mesh(
+            standardBallMesh,
+            applyMarbleFresnel(
+                applyVerticeWobble({intensity: "2.0"},
+                    new THREE.MeshStandardMaterial({ color: args.bob ? args.bob : "green", roughness: rough, metalness: metal })))
+        ),
+        orbiter: new THREE.Mesh(
+            standardBallMesh,
+            applyMarbleFresnel(
+                applyVerticeWobble({intensity: "2.0"},
+                    new THREE.MeshStandardMaterial({ color: args.orbiter ? args.orbiter : "navy", roughness: rough, metalness: metal })))
+        ),
+        paddle: new THREE.Mesh(
+            new THREE.BoxGeometry(2.0, 0.2, 2.8),
+            new THREE.MeshStandardMaterial({
+                color: args.paddle ? args.paddle : "white",
+                transparent: true,
+                opacity: 0.05,
+                depthTest: false
+            })
+        )
+    }
 
-meshes.bertha.add(meshes.organelleBertha.clone());
-meshes.ball.add(meshes.organelle.clone());
-meshes.bob.add(meshes.organelle.clone());
-meshes.orbiter.add(meshes.organelle.clone());
+    for(const [index, [key, mesh]] of Object.entries(meshes).entries())
+    {
+        meshes[key].material.transparent = true;
+        if(!key.includes("organelle"))
+            meshes[key].material.depthTest = false;
+        meshes[key].renderOrder = index;
+
+        if(key == "bertha")
+            mesh.receiveShadow = true;
+        else if(key == "ball" || key == "bob" || key == "orbiter")
+            mesh.castShadow = true;
+    }
+
+    meshes.bertha.add(meshes.organelleBertha.clone());
+    meshes.ball.add(meshes.organelle.clone());
+    meshes.bob.add(meshes.organelle.clone());
+    meshes.orbiter.add(meshes.organelle.clone());
+
+    return meshes;
+}

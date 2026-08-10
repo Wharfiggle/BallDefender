@@ -1,14 +1,12 @@
 import * as THREE from "three";
 import * as GameObject from "./GameObject.js";
-import { meshes } from "./Shaders.js";
+import { getMeshes } from "./Shaders.js";
 
 let dpr = window.devicePixelRatio || 1;
 
-//get outside inputs from url
-const queryString = window.location.search;
-const urlParams = new URLSearchParams(queryString);
-const foo = urlParams.get("foo");
-console.log(foo);
+//set up meshes with params from url
+const urlParams = Object.fromEntries(new URLSearchParams(window.location.search));
+const meshes = getMeshes(urlParams);
 
 //set up three renderer
 let w = window.innerWidth;
@@ -58,9 +56,16 @@ pointLightBack.castShadow = true;
 scene.add(pointLightBack);
 
 //game objects
-const handler = new GameObject.handler(scene, ui, ghostUi);
-handler.addGameObject(new GameObject.paddle(camera));
-handler.addGameObject(new GameObject.scoreKeeper(camera));
+const handler = new GameObject.handler(scene, camera, ui, ghostUi, meshes);
+handler.newGameObject(GameObject.paddle, { paddleColor: urlParams.paddle });
+handler.newGameObject(GameObject.scoreKeeper, { 
+    defaultScore: urlParams.defaultScore, 
+    addScore: urlParams.addScore, 
+    highScore: urlParams.highScore, 
+    subtractScore: urlParams.subtractScore,
+    showScore: urlParams.showScore,
+    scoreParticle: urlParams.scoreParticle
+});
 
 
 //mouse input
@@ -104,10 +109,10 @@ const ballSpawnWeights = [
 const ballSpawnWeightSum = ballSpawnWeights.reduce((sum, e) => sum + e.weight, 0);
 
 //always start with a bertha on screen
-handler.addGameObject(new GameObject.bertha(camera));
+handler.newGameObject(GameObject.bertha);
 
 //add background
-handler.addGameObject(new GameObject.background(camera));
+handler.newGameObject(GameObject.background);
 
 //tick
 let lastTime = 0;
@@ -151,7 +156,7 @@ function tick(t = 0)
             }
         }
 
-        handler.addGameObject(new type(camera));
+        handler.newGameObject(type);
     }
 
     //clear previously drawn ui frame

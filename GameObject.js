@@ -1,23 +1,13 @@
 import * as THREE from "three";
 import { getRandomPointOnRectangle } from "./RandomPointOnRectangle.js";
-import { paddleTrailMat, meshes } from "./Shaders.js";
 import { GLTFLoader } from "jsm/loaders/GLTFLoader.js";
 
 const modelLoader = new GLTFLoader();
 
-let paddleObj = null;
-let scoreObj = null;
-
 const uiScaleHeight = 1000;
 
-//add shadows to meshes except paddle
-for(const [key, mesh] of Object.entries(meshes))
-{
-    if(key == "bertha")
-        mesh.receiveShadow = true;
-    if(key != "paddle")
-        mesh.castShadow = true;
-}
+let paddleObj = null;
+let scoreObj = null;
 
 function lerp(vec1, vec2, t)
 {
@@ -36,13 +26,17 @@ export class handler
 {
     gameObjects = [];
     removeGameObjects = [];
-    unshiftGameObjects = [];
+    unshiftGameObjects = []; //used for adding gameObjects to the start of the list, useful for affecting draw order for ui
     tagGroups = {};
-    constructor(scene, ui, ghostUi)
+    meshes = {};
+    camera = null;
+    constructor(scene, camera, ui, ghostUi, meshes)
     {
         this.scene = scene;
         this.ui = ui;
         this.ghostUi = ghostUi;
+        this.meshes = meshes;
+        this.camera = camera;
 
         //preload meshes and keep in memory to prevent lag spikes on spawns
         for(const [key, mesh] of Object.entries(meshes))
@@ -69,15 +63,20 @@ export class handler
         else
             return [];
     }
+    newGameObject(gameObjClass, args, under = false)
+    {
+        const gameObj = new gameObjClass({ ...args, handler: this });
+        this.addGameObject(gameObj, under);
+    }
     addGameObject(gameObj, under = false)
     {
         gameObj.handler = this;
         gameObj.ui = this.ui;
         gameObj.ghostUi = this.ghostUi;
-        gameObj.postInit(this, this.ui);
+        
         if(gameObj.mesh)
             this.scene.add(gameObj.mesh);
-        
+
         if(under)
             this.unshiftGameObjects.push(gameObj);
         else
@@ -117,26 +116,19 @@ export class handler
     }
 }
 
+//abstract base class, should never be created
 export class gameObject extends EventTarget
 {
     handler = null;
     addedDepth = 0;
     pos = new THREE.Vector3();
     tags = [];
-    constructor(mesh = null, startPos = null, addedDepth = 0)
+    constructor(mesh, addedDepth)
     {
         super();
-
-        if(mesh)
-            this.mesh = mesh.clone();
-
-        this.addedDepth = addedDepth;
-
-        if(!startPos)
-            startPos = new THREE.Vector3();
-        this.setPos(startPos);
+        this.mesh = mesh ? mesh.clone() : null;
+        this.addedDepth = addedDepth ? addedDepth : 0;
     }
-    postInit(handler, ui){}
     tick(dt, time)
     {
         //automatically set any uTime uniforms on materials of meshes
@@ -172,6 +164,19 @@ export class gameObject extends EventTarget
             vec.z -= this.addedDepth;
         return vec;
     }
+    setMesh(mesh)
+    {
+        if(!mesh)
+            return;
+        const prevMesh = this.mesh;
+        this.mesh = mesh.clone();
+        this.mesh.position.copy(this.pos);
+        if(this.handler)
+        {
+            this.handler.scene.remove(prevMesh);
+            this.handler.scene.add(this.mesh);
+        }
+    }
 }
 
 export class paddle extends gameObject
@@ -181,9 +186,8 @@ export class paddle extends gameObject
     targetAngle = Math.PI / 2;
     maxRotSpeed = Math.PI * 10; //radians per second
     angle = Math.PI / 2;
-    width = 0.25;
+    width = 0.2;
     pointLight = null;
-    camera = null;
     dotSizeMod = 1;
     trail = {
         cwMeshes: null,
@@ -212,12 +216,16 @@ export class paddle extends gameObject
         time: 5, //seconds
         timeWithoutInput: 4,
         trailMeshCount: 0
-    }
-    constructor(camera)
+    };
+    paddleColor = "white";
+    constructor(args)
     {
         super(new THREE.Object3D());
 
         paddleObj = this;
+
+        if(args.paddleColor)
+            this.paddleColor = args.paddleColor;
 
         const ar = this.autoRotate;
         ar.speed = ar.defaultSpeed;
@@ -231,11 +239,10 @@ export class paddle extends gameObject
                     if(child.isMesh)
                         paddleObj.paddleMesh = new THREE.Mesh(
                             child.geometry, 
-                            new THREE.MeshStandardMaterial({ color: "white", transparent: true, depthTest: false }));
+                            new THREE.MeshStandardMaterial({ color: paddleObj.paddleColor, transparent: true, depthTest: false }));
                 });
 
-                //paddleObj.paddleMesh = meshes.paddle;
-                paddleObj.paddleMesh.renderOrder = meshes.paddle.renderOrder;
+                paddleObj.paddleMesh.renderOrder = paddleObj.handler.meshes.paddle.renderOrder;
                 
                 //our mesh acts as the anchor point and the paddleMesh rotates with it but at radius
                 paddleObj.paddleMesh.position.set(0, paddleObj.radius, 0);
@@ -246,7 +253,7 @@ export class paddle extends gameObject
                 
                 const maxMeshes = Math.floor(tr.maxLength / tr.gap);
                 console.log("Maximum instanced meshes drawn for paddle trail: " + maxMeshes);
-                tr.ccwMeshes = new THREE.InstancedMesh(paddleObj.paddleMesh.geometry, paddleTrailMat, maxMeshes);
+                tr.ccwMeshes = new THREE.InstancedMesh(paddleObj.paddleMesh.geometry, paddleObj.handler.meshes.paddle.material, maxMeshes);
                 tr.ccwMeshes.renderOrder = paddleObj.paddleMesh.renderOrder - 0.5;
                 tr.cwMeshes = tr.ccwMeshes.clone();
 
@@ -271,8 +278,6 @@ export class paddle extends gameObject
                 paddleObj.paddleMesh.add(tr.cwMeshes);
             }
         );
-
-        this.camera = camera;
 
         //subtle white light from paddle
         this.pointLight = new THREE.PointLight(0xffffff, 15, 25);
@@ -311,13 +316,11 @@ export class paddle extends gameObject
 
             atom.position.set(0, ae.atoms[i].radius, 0);
         }
-    }
-    postInit(handler, ui)
-    {
+
         //respond to mouseEvent fired from game.js and rotate with mouse direction
         document.addEventListener("mouseEvent", event => {
             const e = event.detail;
-            this.targetAngle = Math.atan2(e.pos.x - ui.canvas.width / 2, e.pos.y - ui.canvas.height / 2) - Math.PI / 2;
+            this.targetAngle = Math.atan2(e.pos.x - this.ui.canvas.width / 2, e.pos.y - this.ui.canvas.height / 2) - Math.PI / 2;
             this.autoRotate.timeWithoutInput = 0;
         });
     }
@@ -376,8 +379,8 @@ export class paddle extends gameObject
             //draw 2d circle in ghost ui
             const worldPos = new THREE.Vector3();
             atom.atom.getWorldPosition(worldPos);
-            const screenPos = worldToScreen(worldPos, this.camera, this.ui.width, this.ui.height);
-            this.ghostUi.fillStyle = "white";
+            const screenPos = worldToScreen(worldPos, this.handler.camera, this.ui.width, this.ui.height);
+            this.ghostUi.fillStyle = this.paddleColor;
             this.ghostUi.beginPath();
             const size = i < ae.atoms.length / 2 ? 2.0 : 1.0;
             this.ghostUi.arc(screenPos.x, screenPos.y, size * this.ui.height / uiScaleHeight, 0, Math.PI * 2);
@@ -467,7 +470,6 @@ export class scoreKeeper extends gameObject
     scoreIdle = 0;
     highScore = 0;
     highScoreIdle = 0;
-    camera = null;
     scoreTransition = {
         t: 0,
         target: 0,
@@ -488,16 +490,23 @@ export class scoreKeeper extends gameObject
         speed: 5,
         includeHighScore: false
     };
-    constructor(camera)
+    showScore = true;
+    particleColor = "yellow";
+    constructor(args)
     {
         super();
         scoreObj = this;
 
-        this.camera = camera;
-
-        this.colorFlash.color = this.colorFlash.defaultColor.clone();
-        this.colorFlash.startColor = this.colorFlash.defaultColor.clone();
-        this.colorFlash.targetColor = this.colorFlash.defaultColor.clone();
+        const cf = this.colorFlash;
+        if(args.defaultScore) cf.defaultColor = new THREE.Vector3().fromArray(args.defaultScore.split(','));
+        if(args.addScore) cf.addScoreColor = new THREE.Vector3().fromArray(args.addScore.split(','));
+        if(args.highScore) cf.highScoreColor = new THREE.Vector3().fromArray(args.highScore.split(','));
+        if(args.subtractScore) cf.subtractScoreColor = new THREE.Vector3().fromArray(args.subtractScore.split(','));
+        if(args.showScore) this.showScore = (args.showScore == "true");
+        if(args.scoreParticle) this.particleColor = args.scoreParticle;
+        cf.color = cf.defaultColor.clone();
+        cf.startColor = cf.defaultColor.clone();
+        cf.targetColor = cf.defaultColor.clone();
 
         //load score from local storage
         this.highScore = Number(localStorage.getItem("highScore")) || 0;
@@ -523,9 +532,9 @@ export class scoreKeeper extends gameObject
         //stagger multiple score particles for each point gained
         for(var i = 0; i < num; i++)
         {
-            const particle = new scoreParticle(this.camera, pos, num);
+            const particle = new scoreParticle({startPos: pos, amount: num, color: this.particleColor });
             particle.stayTime += i * 0.1;
-            this.handler.addGameObject(particle, true);
+            this.handler.addGameObject(particle);
             particle.addEventListener("particleDeath", () => {
                 let highScoreAffected = false;
                 if(!paddleObj.autoRotate.active)
@@ -584,60 +593,65 @@ export class scoreKeeper extends gameObject
         st.t += dt * (lower ? -1 : 1) * st.lerpSpeed;
         st.t = lower ? Math.max(st.target, st.t) : Math.min(st.target, st.t); //dont overshoot
 
-        const us = this.ui.height / uiScaleHeight;
-        const color = `rgb(${cf.color.x}, ${cf.color.y}, ${cf.color.z})`;
-        this.ui.font = `${Math.floor(64 * us)}px monospace`;
-        this.ui.textBaseline = "bottom";
-        this.ui.save();
 
-        //center slash
-        this.ui.fillStyle = "white";
-        this.ui.globalAlpha = Math.max(st.idleAlpha, Math.min(st.manualAlpha, 1.0 - st.t));
-        this.ui.textAlign = "center";
-        this.ui.fillText("/", this.ui.width / 2, 120 * us);
-        
-        //manual score
-        const manualOffset = st.posOffset * Math.pow(st.t, 2);
-        const manualAlpha = st.manualAlpha * (1.0 - st.t);
-        if(manualAlpha >= 0.01)
+        //draw score
+        if(this.showScore)
         {
-            this.ui.globalAlpha = manualAlpha;
-            this.ui.fillStyle = color;
-            this.ui.textAlign = "right";
-            this.ui.fillText(this.score, this.ui.width / 2 - 40 * us, (120 + manualOffset) * us);
-            this.ui.fillStyle = cf.includeHighScore ? color : "white";
-            this.ui.textAlign = "left";
-            this.ui.fillText(this.highScore, this.ui.width / 2 + 40 * us, (120 + manualOffset) * us);
-        }
-        
-        //idle score
-        const idleOffset = st.posOffset * (1.0 - Math.pow(st.t, 2));
-        const idleAlpha = st.idleAlpha * st.t;
-        if(idleAlpha >= 0.01)
-        {
-            this.ui.globalAlpha = idleAlpha;
-            this.ui.fillStyle = (cf.targetColor.equals(cf.highScoreColor) || cf.startColor.equals(cf.highScoreColor)) ? color : "white";
-            this.ui.textAlign = "right";
-            this.ui.fillText(this.scoreIdle, this.ui.width / 2 - 40 * us, (120 + idleOffset) * us);
-            this.ui.textAlign = "left";
-            this.ui.fillText(this.highScoreIdle, this.ui.width / 2 + 40 * us, (120 + idleOffset) * us);
-        }
+            const us = this.ui.height / uiScaleHeight;
+            const color = `rgb(${cf.color.x}, ${cf.color.y}, ${cf.color.z})`;
+            this.ui.font = `${Math.floor(64 * us)}px monospace`;
+            this.ui.textBaseline = "bottom";
+            this.ui.save();
 
-        //score labels
-        this.ui.textBaseline = "top";
-        this.ui.font = `${Math.floor(24 * us)}px monospace`;
-        if(manualAlpha >= 0.02)
-        {
-            this.ui.globalAlpha = manualAlpha / 2;
-            this.ui.fillText("High Score", this.ui.width / 2 + 40 * us, (120 + manualOffset) * us);
-        }
-        if(idleAlpha >= 0.02)
-        {
-            this.ui.globalAlpha = idleAlpha / 2;
-            this.ui.fillText("High Score (Idle)", this.ui.width / 2 + 40 * us, (120 + idleOffset) * us);
-        }
+            //center slash
+            this.ui.fillStyle = cf.defaultColor;
+            this.ui.globalAlpha = Math.max(st.idleAlpha, Math.min(st.manualAlpha, 1.0 - st.t));
+            this.ui.textAlign = "center";
+            this.ui.fillText("/", this.ui.width / 2, 120 * us);
+            
+            //manual score
+            const manualOffset = st.posOffset * Math.pow(st.t, 2);
+            const manualAlpha = st.manualAlpha * (1.0 - st.t);
+            if(manualAlpha >= 0.01)
+            {
+                this.ui.globalAlpha = manualAlpha;
+                this.ui.fillStyle = color;
+                this.ui.textAlign = "right";
+                this.ui.fillText(this.score, this.ui.width / 2 - 40 * us, (120 + manualOffset) * us);
+                this.ui.fillStyle = cf.includeHighScore ? color : cf.defaultColor;
+                this.ui.textAlign = "left";
+                this.ui.fillText(this.highScore, this.ui.width / 2 + 40 * us, (120 + manualOffset) * us);
+            }
+            
+            //idle score
+            const idleOffset = st.posOffset * (1.0 - Math.pow(st.t, 2));
+            const idleAlpha = st.idleAlpha * st.t;
+            if(idleAlpha >= 0.01)
+            {
+                this.ui.globalAlpha = idleAlpha;
+                this.ui.fillStyle = (cf.targetColor.equals(cf.highScoreColor) || cf.startColor.equals(cf.highScoreColor)) ? color : cf.defaultColor;
+                this.ui.textAlign = "right";
+                this.ui.fillText(this.scoreIdle, this.ui.width / 2 - 40 * us, (120 + idleOffset) * us);
+                this.ui.textAlign = "left";
+                this.ui.fillText(this.highScoreIdle, this.ui.width / 2 + 40 * us, (120 + idleOffset) * us);
+            }
 
-        this.ui.restore();
+            //score labels
+            this.ui.textBaseline = "top";
+            this.ui.font = `${Math.floor(24 * us)}px monospace`;
+            if(manualAlpha >= 0.02)
+            {
+                this.ui.globalAlpha = manualAlpha / 2;
+                this.ui.fillText("High Score", this.ui.width / 2 + 40 * us, (120 + manualOffset) * us);
+            }
+            if(idleAlpha >= 0.02)
+            {
+                this.ui.globalAlpha = idleAlpha / 2;
+                this.ui.fillText("High Score (Idle)", this.ui.width / 2 + 40 * us, (120 + idleOffset) * us);
+            }
+
+            this.ui.restore();
+        }
     }
 }
 
@@ -647,21 +661,21 @@ export class scoreParticle extends gameObject
     fallTime = 1.0;
     stayTime = 0;
     fadeTime = 0;
-    //maxOffset = 0.5;
-    camera = null;
     timer = 0;
     vel = null;
     target = new THREE.Vector3();
     stopped = false;
     gravity = 0;
-    constructor(camera, startPos = new THREE.Vector3(), amount = null, fallTime = null, fadeTime = null)
+    color = "yellow";
+    constructor(args)
     {
-        super(null, startPos);
-        if(!!amount) this.amount = amount;
-        if(!!fallTime) this.fallTime = fallTime;
-        if(!!fadeTime) this.fadeTime = fadeTime;
-
-        this.camera = camera;
+        super();
+        if(!!args.startPos) this.setPos(args.startPos);
+        if(!!args.amount) this.amount = args.amount;
+        if(!!args.fallTime) this.fallTime = args.fallTime;
+        if(!!args.fadeTime) this.fadeTime = args.fadeTime;
+        
+        if(args.color) this.color = args.color;
 
         const rang = Math.random() * Math.PI * 2;
         this.gravity = new THREE.Vector3(Math.cos(rang) * 9.8, Math.sin(rang) * 9.8);
@@ -709,8 +723,8 @@ export class scoreParticle extends gameObject
             }
         }
 
-        const screenPos = worldToScreen(this.getPos(true), this.camera, this.ui.width, this.ui.height);
-        this.ghostUi.fillStyle = "yellow";
+        const screenPos = worldToScreen(this.getPos(true), this.handler.camera, this.ui.width, this.ui.height);
+        this.ghostUi.fillStyle = this.color;
         this.ghostUi.beginPath();
 	    this.ghostUi.arc(screenPos.x, screenPos.y, 3.5 * this.ui.height / uiScaleHeight, 0, Math.PI * 2);
 	    this.ghostUi.fill();
@@ -719,17 +733,11 @@ export class scoreParticle extends gameObject
 
 export class background extends gameObject
 {
-    camera = null;
-    constructor(camera)
+    constructor(args)
     {
-        super(meshes.background, new THREE.Vector3(0, 0, 0), -10);
+        super(args.handler.meshes.background, -10);
+        this.resizeToWindowDimensions(args.handler.camera);
 
-        this.camera = camera;
-
-        this.resizeToWindowDimensions(camera);
-    }
-    postInit(handler, ui)
-    {
         /*document.addEventListener("windowResize", event => {
             const e = event.detail;
             this.resizeToWindowDimensions(this.camera);
@@ -751,7 +759,6 @@ export class ball extends gameObject
 {
     value = 1;
     speed = 5;
-    camera = null;
     radius = null;
     closeToCenter = false;
     deflected = false;
@@ -761,32 +768,28 @@ export class ball extends gameObject
     deflectThreshold = 0.825;
     centerLerp = 0;
     centerSpeed = 5;
-    constructor(camera, mesh = null, addedDepth = 0)
+    constructor(args)
     {
-        super(!mesh ? meshes.ball : mesh, new THREE.Vector3(), addedDepth);
+        super(args.mesh ? args.mesh : args.handler.meshes.ball, args.addedDepth);
 
         this.radius = this.mesh.geometry.parameters.radius;
-        if(addedDepth == 0)
+        if(args.addedDepth == 0)
             this.addedDepth = this.radius;
-        this.camera = camera;
 
-        console.assert(!!camera);
         console.assert(!!this.radius);
 
         //get spawn point on edge of screen at the origin
         let viewSize = new THREE.Vector2();
-        camera.getViewSize(camera.position.length() - this.addedDepth, viewSize); //populates viewSize with width and height of camera's view z units away
+        args.handler.camera.getViewSize(args.handler.camera.position.length() - this.addedDepth, viewSize); //populates viewSize with width and height of camera's view z units away
         const spawnOffset = this.radius * 10;
         const spawnPoint = getRandomPointOnRectangle(viewSize.width + spawnOffset, viewSize.height + spawnOffset);
         this.setPos(new THREE.Vector3(spawnPoint.x, spawnPoint.y, 0));
 
         this.mesh.children[0].rotation.z = Math.PI;
-    }
-    postInit(handler, ui)
-    {
+
         //check if this would be inside any other ball and move accordingly
         const ang = Math.atan2(this.pos.y, this.pos.x);
-        const balls = handler.getGroupByTag("ball");
+        const balls = args.handler.getGroupByTag("ball");
         for(var i = 0; i < balls.length; i++)
         {
             const ball = balls[i];
@@ -799,7 +802,7 @@ export class ball extends gameObject
             }
         }
         
-        handler.addTag(this, "ball");
+        args.handler.addTag(this, "ball");
     }
     tick(dt, time)
     {
@@ -883,9 +886,9 @@ export class bob extends ball
     bobSpeed = 6;
     bobStrength = 0.3;
     value = 2;
-    constructor(camera)
+    constructor(args)
     {
-        super(camera, meshes.bob);
+        super({ ...args, mesh: args.handler.meshes.bob });
     }
     getMoveVector(dt, speed)
     {
@@ -906,9 +909,9 @@ export class orbiter extends ball
 {
     orbitSpeed = 25;
     value = 2;
-    constructor(camera)
+    constructor(args)
     {
-        super(camera, meshes.orbiter);
+        super({ ...args, mesh: args.handler.meshes.orbiter });
     }
     getMoveVector(dt, speed)
     {
@@ -927,8 +930,8 @@ export class bertha extends ball
     centerSpeed = 1.5;
     value = 5;
     deflectThreshold = 0.675;
-    constructor(camera)
+    constructor(args)
     {
-        super(camera, meshes.bertha, -2);
+        super({ ...args, mesh: args.handler.meshes.bertha, addedDepth: -2 });
     }
 }
