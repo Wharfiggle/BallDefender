@@ -4,6 +4,12 @@ import { meshes } from "./Shaders.js";
 
 let dpr = window.devicePixelRatio || 1;
 
+//get outside inputs from url
+const queryString = window.location.search;
+const urlParams = new URLSearchParams(queryString);
+const foo = urlParams.get("foo");
+console.log(foo);
+
 //set up three renderer
 let w = window.innerWidth;
 let h = window.innerHeight;
