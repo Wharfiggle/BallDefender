@@ -52,7 +52,7 @@ function loadGame()
     handleWindowResize();
 
     //set up lighting
-    const hemiLight = new THREE.AmbientLight(urlParams.ambient ? urlParams.ambient : 0x608060);
+    const hemiLight = new THREE.AmbientLight(urlParams.ambientLight ? urlParams.ambientLight : "rgb(0, 100, 0)");
     scene.add(hemiLight);
     const pointLight = new THREE.PointLight(urlParams.centerLight ? urlParams.centerLight : "white", 150, 40);
     pointLight.position.z = 1.5;
