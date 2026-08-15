@@ -44,7 +44,9 @@ function loadGame()
     const near = 0.1;
     const far = 40;
     const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
-    camera.position.z = 20;
+    const maxCameraTilt = 7.5;
+    camera.position.set(0, maxCameraTilt, 20);
+    camera.lookAt(0, 0, 0);
     const scene = new THREE.Scene();
     scene.background = new THREE.Color("black");
     camera.updateMatrixWorld();
@@ -90,6 +92,17 @@ function loadGame()
         const touchEvent = event.touches[0];
         dispatchMouseEvent(touchEvent);
     }
+
+    //receive mouse information from parent page
+    window.addEventListener("message", event => {
+        if(event.data.type == "mouseEvent")
+            dispatchMouseEvent(event.data);
+        else if(event.data.type == "scrollEvent")
+        {
+            camera.position.set(0, -maxCameraTilt * 2 * (event.data.scrollY / event.data.height - 0.5), 20);
+            camera.lookAt(0, 0, 0);
+        }
+    });
 
     //custom mouseEvent
     function dispatchMouseEvent(event)
